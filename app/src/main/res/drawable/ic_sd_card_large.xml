@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Large microSD illustration: clipped-corner card, contact pins, inset label with text bars. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp"
+    android:height="72dp"
+    android:viewportWidth="56"
+    android:viewportHeight="72">
+    <!-- Card body with clipped top-right corner -->
+    <path
+        android:fillColor="#FF263340"
+        android:strokeColor="#FF38495A"
+        android:strokeWidth="1.5"
+        android:pathData="M12,3 L38,3 L50,15 L50,64 C50,66.8 47.8,69 45,69 L12,69 C9.2,69 7,66.8 7,64 L7,8 C7,5.2 9.2,3 12,3 Z" />
+    <!-- Contact pins along the left edge -->
+    <path
+        android:fillColor="#FF8A99A6"
+        android:pathData="M10,12 L15,12 C15.55,12 16,12.45 16,13 L16,14 C16,14.55 15.55,15 15,15 L10,15 C9.45,15 9,14.55 9,14 L9,13 C9,12.45 9.45,12 10,12 Z
+                     M10,19 L15,19 C15.55,19 16,19.45 16,20 L16,21 C16,21.55 15.55,22 15,22 L10,22 C9.45,22 9,21.55 9,21 L9,20 C9,19.45 9.45,19 10,19 Z
+                     M10,26 L15,26 C15.55,26 16,26.45 16,27 L16,28 C16,28.55 15.55,29 15,29 L10,29 C9.45,29 9,28.55 9,28 L9,27 C9,26.45 9.45,26 10,26 Z
+                     M10,33 L15,33 C15.55,33 16,33.45 16,34 L16,35 C16,35.55 15.55,36 15,36 L10,36 C9.45,36 9,35.55 9,35 L9,34 C9,33.45 9.45,33 10,33 Z" />
+    <!-- Inset label area -->
+    <path
+        android:fillColor="#FF131B23"
+        android:pathData="M20,28 L44,28 C45.1,28 46,28.9 46,30 L46,52 C46,53.1 45.1,54 44,54 L20,54 C18.9,54 18,53.1 18,52 L18,30 C18,28.9 18.9,28 20,28 Z" />
+    <!-- Label text bars -->
+    <path
+        android:fillColor="#FF3A4B5C"
+        android:pathData="M22,34 L40,34 L40,37 L22,37 Z M22,41 L36,41 L36,44 L22,44 Z M22,48 L33,48 L33,51 L22,51 Z" />
+</vector>

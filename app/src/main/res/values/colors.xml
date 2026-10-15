@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Design A: dark midnight workspace, graphite cards, teal Android, azure Linux -->
+    <color name="color_bg">#FF10171E</color>
+    <color name="color_surface">#FF18232D</color>
+    <color name="color_surface_alt">#FF1E2A35</color>
+    <color name="color_outline">#FF2A3947</color>
+    <color name="color_on_bg">#FFEAEFF3</color>
+    <color name="color_on_bg_disabled">#FF6B7A85</color>
+    <color name="color_muted">#FF8A99A6</color>
+    <color name="color_accent">#FF22C7B6</color>
+    <color name="color_accent_dim">#FF157F74</color>
+    <color name="color_android">#FF22C7B6</color>
+    <color name="color_linux">#FF5FA4F5</color>
+    <color name="color_danger">#FFFF6B6B</color>
+    <color name="color_warning">#FFF5B942</color>
+    <color name="color_ok">#FF6BD48A</color>
+    <color name="color_on_accent">#FF07130F</color>
+    <color name="color_primary_button">#FF22C7B6</color>
+    <color name="color_primary_button_disabled">#FF2A4A48</color>
+    <color name="color_thumb">#FFFFFFFF</color>
+    <color name="color_thumb_grip">#FF9AA6AE</color>
+</resources>

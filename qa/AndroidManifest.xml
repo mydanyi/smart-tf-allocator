@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Standalone QA instrumentation manifest for the Armada TF companion app.
+
+    Built by qa/build-instrumentation.sh with aapt2 link (no Gradle module, no
+    new dependencies) and installed alongside the app. The instrumentation runs
+    inside the target app process (targetPackage below), so it can reflectively
+    drive MainActivity's private dialog code without any production test hooks.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.mydanyi.armadatf.qa">
+
+    <uses-sdk
+        android:minSdkVersion="26"
+        android:targetSdkVersion="35" />
+
+    <application android:label="Armada TF Gamepad UI QA" />
+
+    <instrumentation
+        android:name="io.github.mydanyi.armadatf.qa.GamepadUiInstrumentation"
+        android:targetPackage="io.github.mydanyi.armadatf"
+        android:functionalTest="true"
+        android:handleProfiling="false"
+        android:label="Armada TF Gamepad UI QA" />
+
+    <instrumentation
+        android:name="io.github.mydanyi.armadatf.qa.LayoutUiInstrumentation"
+        android:targetPackage="io.github.mydanyi.armadatf"
+        android:functionalTest="true"
+        android:handleProfiling="false"
+        android:label="Armada TF Layout UI QA" />
+
+</manifest>

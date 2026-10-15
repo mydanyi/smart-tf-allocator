@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Large white thumb with a subtle centered grip. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/color_thumb" />
+            <size android:width="26dp" android:height="26dp" />
+        </shape>
+    </item>
+    <item android:top="8dp" android:bottom="8dp" android:left="9dp" android:right="9dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="2dp" />
+            <solid android:color="@color/color_thumb_grip" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- microSD card silhouette: notched corner, contact strips, inset label -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13,2 L9,2 L6,5 L6,7 L4.5,7 L4.5,9 L6,9 L6,11 L4.5,11 L4.5,13 L6,13 L6,15 L4.5,15 L4.5,17 L6,17 L6,19 C6,20.1 6.9,21 8,21 L18,21 C19.1,21 20,20.1 20,19 L20,4 C20,2.9 19.1,2 18,2 Z M17,5 L19,5 L19,6.5 L17,6.5 Z M14,5 L16,5 L16,6.5 L14,6.5 Z M11,5 L13,5 L13,6.5 L11,6.5 Z" />
+    <!-- Inset label area (visible when not tinted flat) -->
+    <path
+        android:fillColor="#FF10171E"
+        android:pathData="M9.5,11.5 L17,11.5 C17.55,11.5 18,11.95 18,12.5 L18,16.5 C18,17.05 17.55,17.5 17,17.5 L9.5,17.5 C8.95,17.5 8.5,17.05 8.5,16.5 L8.5,12.5 C8.5,11.95 8.95,11.5 9.5,11.5 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10.5,13 L15.5,13 L15.5,14 L10.5,14 Z M10.5,15 L14,15 L14,16 L10.5,16 Z" />
+</vector>

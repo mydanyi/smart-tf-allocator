@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">智能TF卡分配器</string>
+    <string name="app_tagline">一张TF卡 双系统一起用</string>
+
+    <!-- Shizuku 状态 -->
+    <string name="shizuku_section">Shizuku</string>
+    <string name="shizuku_state_not_installed">未安装 Shizuku</string>
+    <string name="shizuku_state_not_running">Shizuku 未运行</string>
+    <string name="shizuku_state_unsupported">需要 Shizuku v11 或更高版本</string>
+    <string name="shizuku_state_permission_needed">需要授权</string>
+    <string name="shizuku_state_permission_denied">已拒绝授权</string>
+    <string name="shizuku_state_connecting">正在连接…</string>
+    <string name="shizuku_state_ready_shell">Shizuku 已授权</string>
+    <string name="shizuku_state_ready_root">Shizuku 已授权</string>
+    <string name="shizuku_state_binder_lost">连接已断开</string>
+    <string name="shizuku_state_unknown">未知</string>
+    <string name="action_authorize">授权</string>
+    <string name="action_open_shizuku">打开 Shizuku</string>
+    <string name="action_retry">重试</string>
+
+    <!-- 存储卡选择 -->
+    <string name="card_section">TF 卡</string>
+    <string name="card_ops_section">TF 卡操作</string>
+    <string name="action_refresh">重新扫描</string>
+    <string name="refresh_hint">重新扫描已插入的 TF 卡。</string>
+    <string name="card_none">未检测到 SD 卡</string>
+    <string name="card_pick">请选择存储卡</string>
+    <string name="card_not_eligible">不支持的存储卡：%1$s</string>
+    <string name="reason_not_adoptable">无法作为内部存储</string>
+    <string name="reason_zero_size">容量为 0</string>
+    <string name="reason_cid_unreadable">无法读取卡标识</string>
+    <string name="reason_unknown">未知原因</string>
+    <string name="card_disk_label">磁盘 %1$d</string>
+
+    <!-- 容量分配 -->
+    <string name="allocation_section">分配存储空间</string>
+    <string name="allocation_intro">调整下方滑块，分配 Android 与 Linux 的存储空间。</string>
+    <string name="allocation_android">Android</string>
+    <string name="allocation_linux">Linux</string>
+    <string name="caption_android">应用与数据（App 存储）</string>
+    <string name="caption_linux">Steam 游戏库</string>
+    <string name="percent_label">%1$d%%</string>
+    <string name="allocation_capacity">Android ≈ %1$s · Linux ≈ %2$s</string>
+    <string name="allocation_note">容量为近似值，已扣除 Android 存储元数据占用。Linux 空间用于游戏库，之后由 Armada Installer 完成格式化。</string>
+    <string name="allocation_card_unknown">容量未知</string>
+    <string name="allocation_capacity_placeholder">—</string>
+    <string name="usable_capacity">可用容量：%1$s</string>
+    <string name="allocation_warning">重新分配会清空整张 TF 卡，请先备份。</string>
+    <string name="allocation_linux_note">Linux 空间将在 Armada Installer 中完成格式化。</string>
+
+    <string name="action_review">确认分配方案</string>
+    <string name="action_start">清除并分区</string>
+    <string name="action_cancel">取消</string>
+
+    <!-- 确认 -->
+    <string name="confirm_title">确认清除整张卡</string>
+    <string name="confirm_message">所选 TF 卡上的现有数据都会丢失，包括存储在卡上的 Android 应用和 Linux 文件。</string>
+    <string name="confirm_summary_card">卡容量：%1$s</string>
+    <string name="confirm_summary_android">Android 空间：%1$s</string>
+    <string name="confirm_summary_linux">Linux 空间：%1$s</string>
+    <string name="confirm_summary_id">卡标识：%1$s</string>
+
+    <!-- 阶段 / 进度 -->
+    <string name="phase_prepared">已准备</string>
+    <string name="phase_rechecking">正在复核存储卡</string>
+    <string name="phase_partitioning">正在分区</string>
+    <string name="phase_verifying">正在校验分区</string>
+    <string name="phase_partitioned">分区完成</string>
+    <string name="phase_failed">失败</string>
+    <string name="operation_busy">正在执行… 完成前请保持本应用打开。</string>
+    <string name="operation_unverified">连接已断开 — 操作尚未确认。</string>
+
+    <!-- 交接 -->
+    <string name="handoff_ready_title">Linux 空间已分配</string>
+    <string name="handoff_ready_message">请启动机身存储中的 ArmadaOS，打开 Armada Installer 并选择“TF 卡游戏库”，完成格式化并接入 Steam。</string>
+    <string name="handoff_failed_title">Linux 交接写入失败</string>
+    <string name="handoff_failed_message">%1$s 存储卡仍保持分区状态；请重试交接写入。</string>
+    <string name="handoff_writing">正在写入 Linux 交接文件…</string>
+    <string name="action_retry_handoff">重试写入</string>
+
+    <!-- 日志 -->
+    <string name="log_label">运行日志</string>
+    <string name="action_show_logs">运行日志</string>
+    <string name="action_hide_logs">隐藏日志</string>
+    <string name="action_copy_logs">复制日志</string>
+    <string name="logs_empty">暂无日志事件。</string>
+    <string name="logs_copied">已复制日志</string>
+    <string name="log_level_info">信息</string>
+    <string name="log_level_warn">警告</string>
+    <string name="log_level_error">错误</string>
+
+    <!-- 错误 -->
+    <string name="error_title">错误</string>
+    <string name="action_close">关闭</string>
+    <string name="error_detail">详情：%1$s</string>
+    <string name="err_busy">已有一个分区操作正在运行。</string>
+    <string name="err_invalid_request">请求的分配比例超出范围。</string>
+    <string name="err_not_confirmed">操作未确认。</string>
+    <string name="err_invalid_token">已准备的方案已失效，请重新复核。</string>
+    <string name="err_no_plan">没有已准备的方案，请重新复核。</string>
+    <string name="err_card_missing">所选存储卡不存在。</string>
+    <string name="err_card_changed">存储卡已变化，请刷新后重新复核。</string>
+    <string name="err_permission_denied">Shizuku 授权被拒绝。</string>
+    <string name="err_native_storage_unavailable">无法进行特权存储访问。</string>
+    <string name="err_allocation_failed">存储卡容量不足以按此比例分配。</string>
+    <string name="err_verification_timeout">新分区未在规定时间内出现。</string>
+    <string name="err_verification_interrupted">操作被中断。</string>
+    <string name="err_internal_error">发生内部错误。</string>
+    <string name="err_public_volume_missing">公共 Linux 卷不可用。</string>
+    <string name="err_handoff_invalid">已保存的交接文件无效。</string>
+    <string name="err_handoff_write_failed">交接文件写入失败。</string>
+    <string name="err_generic">操作失败（%1$s）</string>
+
+    <!-- 语言 / 页脚 / 版本 -->
+    <string name="language_label">语言</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_english">English</string>
+    <string name="footer_prefix"></string>
+    <string name="footer_name">单翼制作</string>
+    <string name="footer_suffix"></string>
+    <string name="footer_open_failed">无法打开链接。</string>
+    <string name="version_label">版本 %1$s</string>
+</resources>

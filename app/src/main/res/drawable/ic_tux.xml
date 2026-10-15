@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tux: full-color Linux penguin (black body, white belly and eyes, yellow beak and feet). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Body silhouette: head, shoulders, egg body, foot lobes -->
+    <path
+        android:fillColor="#FF11161B"
+        android:pathData="M12,2.6 C10.1,2.6 8.6,4 8.6,5.8 C8.6,6.6 8.9,7.3 9.4,7.9 C7,9.3 5.9,11.6 5.9,14.2 C5.9,15.8 6.3,17.2 7,18.4 C6.3,18.8 5.8,19.4 5.8,20.1 C5.8,21.3 7.2,22.2 8.9,22.2 C9.8,22.2 10.6,21.9 11.1,21.4 L12.9,21.4 C13.4,21.9 14.2,22.2 15.1,22.2 C16.8,22.2 18.2,21.3 18.2,20.1 C18.2,19.4 17.7,18.8 17,18.4 C17.7,17.2 18.1,15.8 18.1,14.2 C18.1,11.6 17,9.3 14.6,7.9 C15.1,7.3 15.4,6.6 15.4,5.8 C15.4,4 13.9,2.6 12,2.6 Z" />
+    <!-- Yellow feet -->
+    <path
+        android:fillColor="#FFF2A33C"
+        android:pathData="M9,20.6 m-2,0 a2,1 0 1,0 4,0 a2,1 0 1,0 -4,0" />
+    <path
+        android:fillColor="#FFF2A33C"
+        android:pathData="M15,20.6 m-2,0 a2,1 0 1,0 4,0 a2,1 0 1,0 -4,0" />
+    <!-- White belly -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,10.1 C10,10.1 8.5,12.1 8.5,14.5 C8.5,17 10,19.1 12,19.1 C14,19.1 15.5,17 15.5,14.5 C15.5,12.1 14,10.1 12,10.1 Z" />
+    <!-- Eyes -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10.4,5 m-0.75,0 a0.75,0.75 0 1,0 1.5,0 a0.75,0.75 0 1,0 -1.5,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13.6,5 m-0.75,0 a0.75,0.75 0 1,0 1.5,0 a0.75,0.75 0 1,0 -1.5,0" />
+    <!-- Beak -->
+    <path
+        android:fillColor="#FFF2A33C"
+        android:pathData="M10.7,6.3 L13.3,6.3 L12,8.1 Z" />
+</vector>

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Smart TF Card Allocator</string>
+    <string name="app_tagline">One TF card. Both systems.</string>
+
+    <!-- Shizuku status -->
+    <string name="shizuku_section">Shizuku</string>
+    <string name="shizuku_state_not_installed">Shizuku is not installed</string>
+    <string name="shizuku_state_not_running">Shizuku is not running</string>
+    <string name="shizuku_state_unsupported">Shizuku v11 or later is required</string>
+    <string name="shizuku_state_permission_needed">Authorization required</string>
+    <string name="shizuku_state_permission_denied">Authorization denied</string>
+    <string name="shizuku_state_connecting">Connecting…</string>
+    <string name="shizuku_state_ready_shell">Shizuku authorized</string>
+    <string name="shizuku_state_ready_root">Shizuku authorized</string>
+    <string name="shizuku_state_binder_lost">Connection lost</string>
+    <string name="shizuku_state_unknown">Unknown</string>
+    <string name="action_authorize">Authorize</string>
+    <string name="action_open_shizuku">Open Shizuku</string>
+    <string name="action_retry">Retry</string>
+
+    <!-- Card selection -->
+    <string name="card_section">TF card</string>
+    <string name="card_ops_section">TF card operations</string>
+    <string name="action_refresh">Rescan</string>
+    <string name="refresh_hint">Rescans inserted TF cards.</string>
+    <string name="card_none">No SD card detected</string>
+    <string name="card_pick">Select a card</string>
+    <string name="card_not_eligible">Card not supported: %1$s</string>
+    <string name="reason_not_adoptable">not adoptable</string>
+    <string name="reason_zero_size">reports zero size</string>
+    <string name="reason_cid_unreadable">card id unreadable</string>
+    <string name="reason_unknown">unknown reason</string>
+    <string name="card_disk_label">Disk %1$d</string>
+
+    <!-- Allocation -->
+    <string name="allocation_section">Allocate storage</string>
+    <string name="allocation_intro">Drag the slider to split storage between Android and Linux.</string>
+    <string name="allocation_android">Android</string>
+    <string name="allocation_linux">Linux</string>
+    <string name="caption_android">Apps &amp; data (App storage)</string>
+    <string name="caption_linux">Steam game library</string>
+    <string name="percent_label">%1$d%%</string>
+    <string name="allocation_capacity">Android ≈ %1$s · Linux ≈ %2$s</string>
+    <string name="allocation_note">Sizes are approximate and include the Android storage metadata reservation. The Linux share is reserved for a game library and will be formatted by Armada Installer.</string>
+    <string name="allocation_card_unknown">Capacity unknown</string>
+    <string name="allocation_capacity_placeholder">—</string>
+    <string name="usable_capacity">Usable capacity: %1$s</string>
+    <string name="allocation_warning">Reallocating erases the entire TF card. Back up first.</string>
+    <string name="allocation_linux_note">Linux space is formatted in Armada Installer.</string>
+
+    <string name="action_review">Confirm allocation plan</string>
+    <string name="action_start">Erase &amp; partition</string>
+    <string name="action_cancel">Cancel</string>
+
+    <!-- Confirmation -->
+    <string name="confirm_title">Confirm full card erase</string>
+    <string name="confirm_message">All existing data on the selected card will be lost, including Android apps stored on it and Linux files.</string>
+    <string name="confirm_summary_card">Card capacity: %1$s</string>
+    <string name="confirm_summary_android">Android space: %1$s</string>
+    <string name="confirm_summary_linux">Linux space: %1$s</string>
+    <string name="confirm_summary_id">Card ID: %1$s</string>
+
+    <!-- Phase / progress -->
+    <string name="phase_prepared">Prepared</string>
+    <string name="phase_rechecking">Re-checking card</string>
+    <string name="phase_partitioning">Partitioning card</string>
+    <string name="phase_verifying">Verifying partitions</string>
+    <string name="phase_partitioned">Partitioned</string>
+    <string name="phase_failed">Failed</string>
+    <string name="operation_busy">Working… keep this app open until it finishes.</string>
+    <string name="operation_unverified">Connection lost — the operation is not verified yet.</string>
+
+    <!-- Handoff -->
+    <string name="handoff_ready_title">Linux space allocated</string>
+    <string name="handoff_ready_message">Boot into ArmadaOS on the internal storage, open Armada Installer and select TF card game library to finish formatting and connect it to Steam.</string>
+    <string name="handoff_failed_title">Linux handoff failed</string>
+    <string name="handoff_failed_message">%1$s The card stays partitioned; retry the handoff write.</string>
+    <string name="handoff_writing">Writing the Linux handoff…</string>
+    <string name="action_retry_handoff">Retry write</string>
+
+    <!-- Logs -->
+    <string name="log_label">Run logs</string>
+    <string name="action_show_logs">Logs</string>
+    <string name="action_hide_logs">Hide logs</string>
+    <string name="action_copy_logs">Copy logs</string>
+    <string name="logs_empty">No log events yet.</string>
+    <string name="logs_copied">Logs copied</string>
+    <string name="log_level_info">INFO</string>
+    <string name="log_level_warn">WARN</string>
+    <string name="log_level_error">ERROR</string>
+
+    <!-- Errors -->
+    <string name="error_title">Error</string>
+    <string name="action_close">Close</string>
+    <string name="error_detail">Details: %1$s</string>
+    <string name="err_busy">A partition operation is already running.</string>
+    <string name="err_invalid_request">The requested split is out of range.</string>
+    <string name="err_not_confirmed">The operation was not confirmed.</string>
+    <string name="err_invalid_token">The prepared plan is no longer valid. Review again.</string>
+    <string name="err_no_plan">No prepared plan. Review again.</string>
+    <string name="err_card_missing">The selected card is not present.</string>
+    <string name="err_card_changed">The card changed. Refresh and review again.</string>
+    <string name="err_permission_denied">Shizuku authorization was denied.</string>
+    <string name="err_native_storage_unavailable">Privileged storage access is unavailable.</string>
+    <string name="err_allocation_failed">The card is too small for this split.</string>
+    <string name="err_verification_timeout">The new partitions did not appear in time.</string>
+    <string name="err_verification_interrupted">The operation was interrupted.</string>
+    <string name="err_internal_error">An internal error occurred.</string>
+    <string name="err_public_volume_missing">The public Linux volume is not available.</string>
+    <string name="err_handoff_invalid">The stored handoff is invalid.</string>
+    <string name="err_handoff_write_failed">Writing the handoff failed.</string>
+    <string name="err_generic">Operation failed (%1$s)</string>
+
+    <!-- Language / footer / version -->
+    <string name="language_label">Language</string>
+    <string name="language_chinese">中文</string>
+    <string name="language_english">English</string>
+    <string name="footer_prefix"></string>
+    <string name="footer_name">Made by 单翼</string>
+    <string name="footer_suffix"></string>
+    <string name="footer_open_failed">Could not open the link.</string>
+    <string name="version_label">Version %1$s</string>
+</resources>

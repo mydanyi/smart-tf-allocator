@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Warning: full-color amber triangle with dark exclamation. Decorative use only. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFF5B942"
+        android:pathData="M12,2.6 C12.2,2.6 12.36,2.7 12.46,2.88 L22.9,20.4 C23.1,20.74 22.86,21.1 22.46,21.1 L1.54,21.1 C1.14,21.1 0.9,20.74 1.1,20.4 L11.54,2.88 C11.64,2.7 11.8,2.6 12,2.6 Z" />
+    <path
+        android:fillColor="#FF10171E"
+        android:pathData="M11,9.5 L13,9.5 L13,14.5 L11,14.5 Z M11,16.2 L13,16.2 L13,18.2 L11,18.2 Z" />
+</vector>
