@@ -70,9 +70,90 @@ class ShizukuManager private constructor(private val appContext: Context) {
 
     data class IpcError(val code: String, val detail: String?)
 
+    /** Stable request captured by a prepared migration token. */
+    data class MigrationRequest(
+        val kind: String,
+        val diskId: String,
+        val targetUuid: String,
+        val packageName: String? = null,
+    ) {
+        fun toJson(): JSONObject {
+            val json = JSONObject()
+                .put("kind", kind)
+                .put("disk_id", diskId)
+                .put("target_uuid", targetUuid)
+            if (kind == ShizukuManager.KIND_APP) json.put("package_name", packageName)
+            return json
+        }
+    }
+
+    /** One-use prepared migration plus the source/target snapshot to confirm. */
+    data class PreparedMigration(
+        val token: String,
+        val kind: String,
+        val diskId: String,
+        val targetUuid: String,
+        val packageName: String?,
+        val sourceUuid: String,
+        val selectedPrivateUuid: String?,
+        val layout: String?,
+    )
+
+    /** Parsed `migrationStatus` payload; progress is the actual native value. */
+    data class MigrationStatus(
+        val moveId: Int,
+        val state: String,
+        val progress: Int?,
+        val nativeStatus: Int?,
+        val kind: String?,
+        val targetUuid: String?,
+        val packageName: String?,
+        val error: String?,
+        val detail: String?,
+    )
+
+    /** One application row of the read-only migration inventory. */
+    data class MigrationApp(
+        val packageName: String,
+        val sourceUuid: String,
+        val installLocationName: String,
+        val system: Boolean,
+        val updatedSystem: Boolean,
+        val deviceAdmin: Boolean?,
+        val onThisCard: Boolean,
+        val eligibleForSd: Boolean,
+        val eligibleForInternal: Boolean,
+    )
+
+    /** Read-only view of the selected card's migration options. */
+    data class MigrationOverview(
+        val diskId: String,
+        val isSd: Boolean,
+        val layout: String,
+        val primaryUuid: String,
+        val primaryOnThisDisk: Boolean,
+        val selectedPrivateUuid: String?,
+        val destinationAvailable: Boolean,
+        val moveBackRequired: Boolean?,
+        val volumes: List<MigrationVolume>,
+        val apps: List<MigrationApp>,
+        val appsTruncated: Boolean,
+        val appsError: String?,
+        val activeMigration: MigrationStatus?,
+    )
+
+    data class MigrationVolume(
+        val type: String,
+        val capacityBytes: Long?,
+        val availableBytes: Long?,
+    )
+
     interface Callback {
         fun onState(state: State, identity: String?)
         fun onStatus(status: OperationStatus)
+
+        /** App-scoped migration progress; a no-op keeps older listeners compatible. */
+        fun onMigrationStatus(status: MigrationStatus?, error: IpcError?) {}
     }
 
     private val lock = Any()
@@ -98,13 +179,29 @@ class ShizukuManager private constructor(private val appContext: Context) {
 
     /** True while the privileged service reports an in-flight partition run. */
     @Volatile
-    var operationActive: Boolean = false
+    private var partitionActive: Boolean = false
+
+    /** True from the moment a migration start is requested until it is terminal. */
+    @Volatile
+    var migrationActive: Boolean = false
         private set
+
+    /**
+     * True while any privileged operation (partition or migration) is active,
+     * including the gap between a confirmed migration start and its answer.
+     */
+    val operationActive: Boolean
+        get() = partitionActive || migrationActive
 
     private var listening = false
     private var polling = false
 
     private val pollRunnable = Runnable { pollOnce() }
+
+    private var migrationPolling = false
+    private var migrationMoveId: Int? = null
+
+    private val migrationPollRunnable = Runnable { pollMigrationOnce() }
 
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener { onBinderReceived() }
     private val binderDeadListener = Shizuku.OnBinderDeadListener { onBinderDead() }
@@ -133,8 +230,9 @@ class ShizukuManager private constructor(private val appContext: Context) {
                 bound = false
                 userServiceArgs = null
             }
-            operationActive = false
+            partitionActive = false
             stopPolling()
+            stopMigrationPolling()
             setState(State.BINDER_LOST)
         }
     }
@@ -183,6 +281,7 @@ class ShizukuManager private constructor(private val appContext: Context) {
 
     private fun shutdown() {
         if (polling) stopPolling()
+        stopMigrationPolling()
         synchronized(lock) {
             if (listening) {
                 listening = false
@@ -277,8 +376,9 @@ class ShizukuManager private constructor(private val appContext: Context) {
             bound = false
             userServiceArgs = null
         }
-        operationActive = false
+        partitionActive = false
         stopPolling()
+        stopMigrationPolling()
         setState(State.BINDER_LOST)
     }
 
@@ -303,7 +403,7 @@ class ShizukuManager private constructor(private val appContext: Context) {
             .daemon(true)
             .processNameSuffix(SERVICE_PROCESS_SUFFIX)
             .debuggable(BuildConfig.DEBUG)
-            .version(SERVICE_VERSION)
+            .version(BuildConfig.VERSION_CODE)
             .tag(SERVICE_TAG)
         synchronized(lock) { userServiceArgs = args }
         try {
@@ -347,6 +447,23 @@ class ShizukuManager private constructor(private val appContext: Context) {
         }
     }
 
+    /**
+     * Read-only live card state for [diskId]; never prepares, starts or mutates
+     * anything. The parsed model is the pure UI presentation input.
+     */
+    fun requestMigrationInfo(
+        diskId: String,
+        callback: (LiveCardInfo?, IpcError?) -> Unit,
+    ) {
+        withService(callback) { service ->
+            val json = JSONObject(service.migrationInfo(diskId))
+            if (!json.optBoolean("ok", false)) {
+                return@withService null to errorOf(json)
+            }
+            parseLiveCardInfo(json.getJSONObject("data")) to null
+        }
+    }
+
     fun prepare(diskId: String, androidPercent: Int, callback: (Prepared?, IpcError?) -> Unit) {
         val linuxPercent = 100 - androidPercent
         withService(callback) { service ->
@@ -382,7 +499,7 @@ class ShizukuManager private constructor(private val appContext: Context) {
                 logs = emptyList(),
                 handoff = null,
             )
-            operationActive = status.state == STATE_RUNNING
+            partitionActive = status.state == STATE_RUNNING
             status to null
         }
     }
@@ -394,10 +511,183 @@ class ShizukuManager private constructor(private val appContext: Context) {
                 return@withService null to errorOf(json)
             }
             val status = parseStatus(json.getJSONObject("data"))
-            operationActive = status.state == STATE_RUNNING
+            partitionActive = status.state == STATE_RUNNING
             status to null
         }
     }
+
+    // --- migration -----------------------------------------------------------
+
+    /**
+     * Read-only migration inventory (primary location, app candidates, retained
+     * active move) for the selected disk. Never prepares or starts anything.
+     */
+    fun requestMigrationOverview(
+        diskId: String,
+        callback: (MigrationOverview?, IpcError?) -> Unit,
+    ) {
+        withService(callback) { service ->
+            val json = JSONObject(service.migrationInfo(diskId))
+            if (!json.optBoolean("ok", false)) {
+                return@withService null to errorOf(json)
+            }
+            parseMigrationOverview(json.getJSONObject("data")) to null
+        }
+    }
+
+    /** Prepares a one-use migration token; no card or package is changed. */
+    fun prepareMigration(
+        request: MigrationRequest,
+        callback: (PreparedMigration?, IpcError?) -> Unit,
+    ) {
+        withService(callback) { service ->
+            val json = JSONObject(service.prepareMigration(request.toJson().toString()))
+            if (!json.optBoolean("ok", false)) {
+                return@withService null to errorOf(json)
+            }
+            val data = json.getJSONObject("data")
+            val prepared = PreparedMigration(
+                token = data.getString("token"),
+                kind = data.optString("kind"),
+                diskId = data.optString("disk_id"),
+                targetUuid = data.optString("target_uuid"),
+                packageName = nullableString(data, "package_name"),
+                sourceUuid = data.optString("source_uuid"),
+                selectedPrivateUuid = nullableString(data, "selected_private_uuid"),
+                layout = nullableString(data, "layout"),
+            )
+            prepared to null
+        }
+    }
+
+    /**
+     * Starts a confirmed one-use migration. [migrationActive] is raised before
+     * the IPC call so the binding survives an Activity close during the gap and
+     * no destructive action can slip in.
+     */
+    fun startMigration(token: String, callback: (MigrationStatus?, IpcError?) -> Unit) {
+        setMigrationActive(true)
+        if (currentService() == null) {
+            setMigrationActive(false)
+            postMain { callback(null, IpcError(ERR_NOT_READY, null)) }
+            return
+        }
+        withService({ status: MigrationStatus?, error: IpcError? ->
+            // A definitive refusal means this call issued no native move, so the
+            // busy state may drop. An IPC/read failure leaves the outcome
+            // unknown: stay busy and let the Activity recover the retained move
+            // from migrationInfo instead of repeating the start.
+            if (error != null && !isTransportFailure(error.code)) setMigrationActive(false)
+            callback(status, error)
+        }) { service ->
+            val json = JSONObject(service.startMigration(token, true))
+            if (!json.optBoolean("ok", false)) {
+                // The start call returned without a running record; the token is
+                // spent, so a repeat is impossible. Any retained active move is
+                // recovered from migrationInfo.active_migration, never restarted.
+                return@withService null to errorOf(json)
+            }
+            val status = parseMigrationStatus(json.getJSONObject("data"))
+            setMigrationActive(status.state == MIGRATION_RUNNING)
+            status to null
+        }
+    }
+
+    /** One read-only status query; the caller owns any polling loop. */
+    fun requestMigrationStatus(
+        moveId: Int,
+        callback: (MigrationStatus?, IpcError?) -> Unit,
+    ) {
+        withService(callback) { service ->
+            val json = JSONObject(service.migrationStatus(moveId))
+            if (!json.optBoolean("ok", false)) {
+                return@withService null to errorOf(json)
+            }
+            val status = parseMigrationStatus(json.getJSONObject("data"))
+            // Only a parsed native answer decides the busy state. An unreadable
+            // status says nothing about the move and must not look like a
+            // native failure.
+            setMigrationActive(status.state == MIGRATION_RUNNING)
+            status to null
+        }
+    }
+
+    /**
+     * Activity-side release after a verified completion or a definitive
+     * pre-start refusal. Never called for an unreadable in-flight move.
+     */
+    fun markMigrationIdle() {
+        stopMigrationPolling()
+        setMigrationActive(false)
+    }
+
+    /** App-scoped migration polling; terminal/unavailable answers stop it. */
+    fun startMigrationPolling(moveId: Int) {
+        synchronized(lock) {
+            if (migrationPolling && migrationMoveId == moveId) return
+            migrationPolling = true
+            migrationMoveId = moveId
+        }
+        mainHandler.removeCallbacks(migrationPollRunnable)
+        // A restored known move is busy immediately, before the first poll.
+        setMigrationActive(true)
+        mainHandler.post(migrationPollRunnable)
+    }
+
+    fun stopMigrationPolling() {
+        synchronized(lock) {
+            migrationPolling = false
+            migrationMoveId = null
+        }
+        mainHandler.removeCallbacks(migrationPollRunnable)
+    }
+
+    private fun pollMigrationOnce() {
+        val moveId = synchronized(lock) {
+            if (migrationPolling) migrationMoveId else null
+        }
+        if (moveId == null) {
+            stopMigrationPolling()
+            return
+        }
+        requestMigrationStatus(moveId) { status, error ->
+            dispatchMigration(status, error)
+            val running = status != null && status.state == MIGRATION_RUNNING
+            // A transport/read failure says nothing about the native move, so
+            // keep polling the same id instead of dropping the tracking.
+            val retry = status == null && error != null && isTransportFailure(error.code)
+            if ((running || retry) && synchronized(lock) { migrationPolling }) {
+                mainHandler.postDelayed(migrationPollRunnable, POLL_INTERVAL_MS)
+            } else {
+                stopMigrationPolling()
+            }
+        }
+    }
+
+    private fun dispatchMigration(status: MigrationStatus?, error: IpcError?) {
+        val copy = synchronized(lock) { callbacks.toList() }
+        for (callback in copy) callback.onMigrationStatus(status, error)
+    }
+
+    /**
+     * Raises or lowers [migrationActive] and tells the listeners on the main
+     * thread. The notification carries no status, so listeners only re-evaluate
+     * their controls and can never re-enter a start or a poll.
+     */
+    private fun setMigrationActive(active: Boolean) {
+        val changed = synchronized(lock) {
+            if (migrationActive == active) {
+                false
+            } else {
+                migrationActive = active
+                true
+            }
+        }
+        if (changed) postMain { dispatchMigration(null, null) }
+    }
+
+    /** IPC/read failure: the call may have reached the service, outcome unknown. */
+    private fun isTransportFailure(code: String): Boolean = code == ERR_INTERNAL
 
     fun startPolling() {
         synchronized(lock) {
@@ -478,6 +768,119 @@ class ShizukuManager private constructor(private val appContext: Context) {
         return disks
     }
 
+    private fun parseLiveCardInfo(data: JSONObject): LiveCardInfo {
+        val volumes = ArrayList<LiveVolume>()
+        val array = data.optJSONArray("volumes") ?: JSONArray()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            volumes.add(
+                LiveVolume(
+                    type = item.optString("type"),
+                    fsUuid = nullableString(item, "fs_uuid"),
+                    partGuid = nullableString(item, "part_guid"),
+                    capacityBytes = nullableLong(item, "capacity_bytes")?.takeIf { it > 0L },
+                ),
+            )
+        }
+        return LiveCardInfo(
+            diskId = data.optString("disk_id"),
+            diskBytes = data.optLong("disk_bytes"),
+            cardCid = data.optString("card_cid").takeUnless { it == "null" }.orEmpty(),
+            isSd = data.optBoolean("is_sd", false),
+            layout = data.optString("layout", "none"),
+            selectedPrivateUuid = nullableString(data, "selected_private_uuid"),
+            moveBackRequired = if (!data.has("move_back_required") ||
+                data.isNull("move_back_required")
+            ) {
+                null
+            } else {
+                data.optBoolean("move_back_required")
+            },
+            volumes = volumes,
+        )
+    }
+
+    private fun nullableString(json: JSONObject, key: String): String? =
+        if (!json.has(key) || json.isNull(key)) {
+            null
+        } else {
+            json.optString(key).takeIf { it.isNotEmpty() && it != "null" }
+        }
+
+    private fun nullableLong(json: JSONObject, key: String): Long? =
+        if (!json.has(key) || json.isNull(key)) null else json.optLong(key)
+
+    private fun nullableInt(json: JSONObject, key: String): Int? =
+        if (!json.has(key) || json.isNull(key)) null else json.optInt(key)
+
+    private fun nullableBoolean(json: JSONObject, key: String): Boolean? =
+        if (!json.has(key) || json.isNull(key)) null else json.optBoolean(key)
+
+    private fun parseMigrationStatus(data: JSONObject): MigrationStatus = MigrationStatus(
+        moveId = data.optInt("move_id", -1),
+        state = data.optString("state", MIGRATION_FAILED),
+        progress = nullableInt(data, "progress"),
+        nativeStatus = nullableInt(data, "native_status"),
+        kind = nullableString(data, "kind"),
+        targetUuid = nullableString(data, "target_uuid"),
+        packageName = nullableString(data, "package_name"),
+        error = nullableString(data, "error"),
+        detail = nullableString(data, "detail"),
+    )
+
+    private fun parseMigrationApp(data: JSONObject): MigrationApp = MigrationApp(
+        packageName = data.optString("package_name"),
+        sourceUuid = data.optString("source_uuid"),
+        installLocationName = data.optString("install_location_name", "unknown"),
+        system = data.optBoolean("system", false),
+        updatedSystem = data.optBoolean("updated_system", false),
+        deviceAdmin = nullableBoolean(data, "device_admin"),
+        onThisCard = data.optBoolean("on_this_card", false),
+        eligibleForSd = data.optBoolean("eligible_for_sd", false),
+        eligibleForInternal = data.optBoolean("eligible_for_internal", false),
+    )
+
+    private fun parseMigrationOverview(data: JSONObject): MigrationOverview {
+        val volumes = ArrayList<MigrationVolume>()
+        val volumeArray = data.optJSONArray("volumes") ?: JSONArray()
+        for (index in 0 until volumeArray.length()) {
+            val item = volumeArray.optJSONObject(index) ?: continue
+            volumes.add(
+                MigrationVolume(
+                    type = item.optString("type"),
+                    capacityBytes = nullableLong(item, "capacity_bytes")?.takeIf { it > 0L },
+                    availableBytes = nullableLong(item, "available_bytes")?.takeIf { it >= 0L },
+                ),
+            )
+        }
+        val apps = ArrayList<MigrationApp>()
+        val appArray = data.optJSONArray("apps") ?: JSONArray()
+        for (index in 0 until appArray.length()) {
+            val item = appArray.optJSONObject(index) ?: continue
+            apps.add(parseMigrationApp(item))
+        }
+        val active = if (data.has("active_migration") && !data.isNull("active_migration")) {
+            data.optJSONObject("active_migration")?.let { parseMigrationStatus(it) }
+        } else {
+            null
+        }
+        return MigrationOverview(
+            diskId = data.optString("disk_id"),
+            isSd = data.optBoolean("is_sd", false),
+            layout = data.optString("layout", "none"),
+            primaryUuid = data.optString("primary_uuid", "internal"),
+            primaryOnThisDisk = data.optBoolean("primary_on_this_disk", false),
+            selectedPrivateUuid = nullableString(data, "selected_private_uuid"),
+            destinationAvailable = data.optBoolean("destination_available", false),
+            moveBackRequired = nullableBoolean(data, "move_back_required"),
+            volumes = volumes,
+            apps = apps,
+            appsTruncated = data.optBoolean("apps_truncated", false),
+            appsError = nullableString(data, "apps_error"),
+            activeMigration = active,
+        )
+    }
+
     private fun parseStatus(data: JSONObject): OperationStatus {
         val logs = ArrayList<LogEntry>()
         val array = data.optJSONArray("logs") ?: JSONArray()
@@ -543,9 +946,14 @@ class ShizukuManager private constructor(private val appContext: Context) {
         const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
         const val REQUEST_CODE = 4271
 
+        const val KIND_PRIMARY = "primary"
+        const val KIND_APP = "app"
+        const val MIGRATION_RUNNING = "running"
+        const val MIGRATION_COMPLETED = "completed"
+        const val MIGRATION_FAILED = "failed"
+
         private const val SHIZUKU_MIN_VERSION = 11
         private const val SERVICE_TAG = "stable"
-        private const val SERVICE_VERSION = 1
         private const val SERVICE_PROCESS_SUFFIX = "storage"
         private const val STATE_RUNNING = "running"
         private const val POLL_INTERVAL_MS = 1_000L

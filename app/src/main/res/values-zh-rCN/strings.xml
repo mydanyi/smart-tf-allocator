@@ -42,12 +42,34 @@
     <string name="caption_linux">Steam 游戏库</string>
     <string name="percent_label">%1$d%%</string>
     <string name="allocation_capacity">Android ≈ %1$s · Linux ≈ %2$s</string>
-    <string name="allocation_note">容量为近似值，已扣除 Android 存储元数据占用。Linux 空间用于游戏库，之后由 Armada Installer 完成格式化。</string>
+    <string name="allocation_note" formatted="false">容量为近似值，已扣除 Android 存储元数据占用。Android 比例 10%–90% 时与 Linux 共用整张卡；滑到两端则整张卡归一个系统使用。Linux 空间由 Armada Installer 完成格式化。</string>
     <string name="allocation_card_unknown">容量未知</string>
     <string name="allocation_capacity_placeholder">—</string>
     <string name="usable_capacity">可用容量：%1$s</string>
+    <string name="allocation_mode_android_only">全 Android · %1$s</string>
+    <string name="allocation_mode_linux_only">全 Linux · %1$s</string>
     <string name="allocation_warning">重新分配会清空整张 TF 卡，请先备份。</string>
-    <string name="allocation_linux_note">Linux 空间将在 Armada Installer 中完成格式化。</string>
+    <string name="allocation_linux_note">混合分配时，Linux 空间由 Armada Installer 完成格式化。</string>
+
+    <!-- 已完成分配摘要 -->
+    <string name="allocation_inspecting">正在读取存储卡当前分配…</string>
+    <string name="allocation_inspection_failed">无法读取存储卡当前分配，请重新扫描后重试。</string>
+    <string name="summary_title">空间已分配</string>
+    <string name="summary_total">TF 卡容量：%1$s</string>
+    <string name="summary_total_unknown">TF 卡容量：未知</string>
+    <string name="summary_android_value">Android · %1$s</string>
+    <string name="summary_linux_value">Linux · %1$s</string>
+    <string name="summary_side_not_allocated">未分配</string>
+    <string name="summary_side_unknown">未知</string>
+    <string name="summary_move_back_required">重新分配前，请先在“迁移管理”中把主存储和已安装应用从这张卡迁回。</string>
+    <string name="summary_move_back_unknown">无法读取已安装应用列表，因此已阻止重新分配。请打开“迁移管理”，先把所有内容迁回。</string>
+    <string name="summary_move_back_title">请先迁回</string>
+    <string name="summary_move_back_required_message">这张卡仍保存着主存储或已安装应用。请先打开“迁移管理”把它们迁回 Android 存储，然后再重新分配。</string>
+    <string name="summary_move_back_unknown_message">无法读取已安装应用列表，为避免数据丢失已阻止重新分配。请打开“迁移管理”，先把所有内容迁回 Android 存储，然后重试。</string>
+    <string name="summary_migration_entry">迁移管理</string>
+    <string name="summary_migration_unavailable">迁移管理尚不可用。</string>
+    <string name="action_reallocate">重新分配</string>
+    <string name="action_cancel_reallocate">取消重新分配</string>
 
     <string name="action_review">确认分配方案</string>
     <string name="action_start">清除并分区</string>
@@ -74,6 +96,8 @@
     <!-- 交接 -->
     <string name="handoff_ready_title">Linux 空间已分配</string>
     <string name="handoff_ready_message">请启动机身存储中的 ArmadaOS，打开 Armada Installer 并选择“TF 卡游戏库”，完成格式化并接入 Steam。</string>
+    <string name="handoff_android_ready_title">Android 存储已就绪</string>
+    <string name="handoff_android_ready_message">整张卡已用作 Android 内部扩展存储（%1$s）。请使用本应用的“迁移管理”移动应用和数据。</string>
     <string name="handoff_failed_title">Linux 交接写入失败</string>
     <string name="handoff_failed_message">%1$s 存储卡仍保持分区状态；请重试交接写入。</string>
     <string name="handoff_writing">正在写入 Linux 交接文件…</string>
@@ -112,13 +136,83 @@
     <string name="err_handoff_write_failed">交接文件写入失败。</string>
     <string name="err_generic">操作失败（%1$s）</string>
 
+    <!-- 迁移管理 -->
+    <string name="migration_title">迁移管理</string>
+    <string name="migration_intro">在机身存储与这张 TF 卡之间移动主共享存储和可迁移应用。</string>
+    <string name="migration_card_line">TF 卡：%1$s · 可用 %2$s</string>
+    <string name="migration_card_line_unknown">TF 卡：容量未知</string>
+    <string name="migration_free_unknown">未知</string>
+    <string name="migration_refresh">刷新列表</string>
+    <string name="migration_state_loading">正在读取迁移选项…</string>
+    <string name="migration_state_load_failed">无法读取迁移选项，请刷新后重试。</string>
+    <string name="migration_state_not_ready">正在等待 Shizuku 连接…</string>
+    <string name="migration_state_unavailable">这张卡没有 Android 专用存储，无法进行迁移。</string>
+    <string name="migration_primary_section">共享文件</string>
+    <string name="migration_primary_to_card">将共享文件移到这张卡</string>
+    <string name="migration_primary_to_internal">将共享文件移回机身存储</string>
+    <string name="migration_primary_note">仅移动主共享存储，不会移动所有应用。</string>
+    <string name="migration_primary_unavailable">TF 卡未挂载或不可写，暂时无法移动共享文件。</string>
+    <string name="migration_apps_section">应用</string>
+    <string name="migration_apps_empty">没有可管理的已安装应用。</string>
+    <string name="migration_apps_error">无法读取已安装应用列表，请刷新后重试。</string>
+    <string name="migration_apps_truncated">仅列出前 %1$d 个应用。</string>
+    <string name="migration_app_location_internal">机身存储</string>
+    <string name="migration_app_location_card">这张 TF 卡</string>
+    <string name="migration_app_location_other">其他存储</string>
+    <string name="migration_app_destination_card">移到卡</string>
+    <string name="migration_app_destination_internal">移到机身</string>
+    <string name="migration_app_not_movable">无法移动</string>
+    <string name="migration_app_system">系统应用无法移动。</string>
+    <string name="migration_app_device_admin">设备管理应用无法移动。</string>
+    <string name="migration_confirm_title">确认移动</string>
+    <string name="migration_confirm_primary">将主共享存储从 %1$s 移到 %2$s？\n\n这不会移动所有应用。</string>
+    <string name="migration_confirm_app">将 %1$s（%2$s）从 %3$s 移到 %4$s？</string>
+    <string name="migration_confirm_start">开始移动</string>
+    <string name="migration_target_internal">机身存储</string>
+    <string name="migration_target_card">这张 TF 卡</string>
+    <string name="migration_target_other">其他存储</string>
+    <string name="migration_target_unknown">未知目标</string>
+    <string name="migration_status_starting">正在启动移动…</string>
+    <string name="migration_status_progress">正在移动… %1$d%%</string>
+    <string name="migration_status_progress_unknown">正在移动… 系统尚未报告进度。</string>
+    <string name="migration_status_completed">移动已完成，目标位置已验证。</string>
+    <string name="migration_status_failed">移动失败：%1$s</string>
+    <string name="migration_status_unverified">移动已结束，但无法验证目标位置。不会视为成功，也不会自动重试。</string>
+    <string name="migration_status_card_changed">存储卡已更换或无法读取，已保存的结果不能应用到当前存储卡。</string>
+    <string name="migration_status_checking">正在检查已保存的移动…</string>
+    <string name="migration_status_pending">移动已启动但结果未知，不会自动重新启动。</string>
+    <string name="migration_logs_label">日志</string>
+    <string name="migration_logs_empty">暂无迁移事件。</string>
+    <string name="migration_err_insufficient_storage">目标位置没有足够的可用空间。</string>
+    <string name="migration_err_package_missing">该应用已不在安装列表中。</string>
+    <string name="migration_err_system_package">系统应用无法移动。</string>
+    <string name="migration_err_invalid_location">该应用的安装位置不允许此移动。</string>
+    <string name="migration_err_operation_pending">另一个应用移动仍在等待完成，请稍后重试。</string>
+    <string name="migration_err_device_admin">设备管理应用无法移动。</string>
+    <string name="migration_err_not_allowed">系统不允许该应用位于机身存储。</string>
+    <string name="migration_err_locked_user">用户已锁定，请解锁设备后重试。</string>
+    <string name="migration_err_failed_native">系统拒绝了本次移动。</string>
+    <string name="migration_err_destination_mismatch">目标位置与预期的存储不一致。</string>
+    <string name="migration_err_source_changed">源位置已变化，请刷新后重试。</string>
+    <string name="migration_err_target_not_mounted">TF 卡未挂载或不可写。</string>
+    <string name="migration_err_card">存储卡已更换、不存在或无法迁移。</string>
+    <string name="migration_err_invalid_direction">不允许此来源与目标的组合。</string>
+    <string name="migration_err_package_not_eligible">该应用无法移动。</string>
+    <string name="migration_err_app_query">无法读取已安装应用列表。</string>
+    <string name="migration_err_start_failed">无法启动移动，请刷新后重试。</string>
+    <string name="migration_err_unavailable">无法使用特权迁移。</string>
+    <string name="migration_err_busy">已有其他存储操作正在运行。</string>
+    <string name="migration_err_generic">移动未能完成。</string>
+
     <!-- 语言 / 页脚 / 版本 -->
     <string name="language_label">语言</string>
     <string name="language_chinese">中文</string>
     <string name="language_english">English</string>
-    <string name="footer_prefix"></string>
-    <string name="footer_name">单翼制作</string>
-    <string name="footer_suffix"></string>
+    <string name="footer_prefix">作者</string>
+    <string name="footer_name">单翼</string>
+    <string name="footer_suffix">免费软件，谨防被骗</string>
+    <string name="footer_bilibili">哔哩哔哩主页</string>
+    <string name="footer_github">GitHub 主页</string>
     <string name="footer_open_failed">无法打开链接。</string>
     <string name="version_label">版本 %1$s</string>
 </resources>

@@ -11,9 +11,21 @@
     package visibility.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="internalOnly">
 
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <!--
+        QUERY_ALL_PACKAGES is required by the app's core app-migration feature:
+        it must enumerate arbitrary user-installed packages, resolve their
+        labels, and re-verify each app's current storage UUID via
+        PackageManager after a service restart. A finite <queries> list cannot
+        enumerate apps the user chooses at runtime, so the broad permission is
+        kept and lint is suppressed for this single declaration only.
+    -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
@@ -36,6 +48,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="io.github.mydanyi.armadatf.ui.MigrationActivity"
+            android:exported="false"
+            android:label="@string/migration_title"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode|density|locale" />
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

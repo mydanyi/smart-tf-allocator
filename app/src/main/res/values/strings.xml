@@ -42,12 +42,34 @@
     <string name="caption_linux">Steam game library</string>
     <string name="percent_label">%1$d%%</string>
     <string name="allocation_capacity">Android ≈ %1$s · Linux ≈ %2$s</string>
-    <string name="allocation_note">Sizes are approximate and include the Android storage metadata reservation. The Linux share is reserved for a game library and will be formatted by Armada Installer.</string>
+    <string name="allocation_note" formatted="false">Sizes are approximate and include the Android storage metadata reservation. An Android share of 10%–90% shares the card with Linux; either end gives the whole card to one system. A Linux share is formatted by Armada Installer.</string>
     <string name="allocation_card_unknown">Capacity unknown</string>
     <string name="allocation_capacity_placeholder">—</string>
     <string name="usable_capacity">Usable capacity: %1$s</string>
+    <string name="allocation_mode_android_only">All-Android · %1$s</string>
+    <string name="allocation_mode_linux_only">All-Linux · %1$s</string>
     <string name="allocation_warning">Reallocating erases the entire TF card. Back up first.</string>
-    <string name="allocation_linux_note">Linux space is formatted in Armada Installer.</string>
+    <string name="allocation_linux_note">In the mixed layout, Armada Installer formats the Linux space.</string>
+
+    <!-- Completed allocation summary -->
+    <string name="allocation_inspecting">Reading the card\'s current layout…</string>
+    <string name="allocation_inspection_failed">Could not read the card\'s current layout. Refresh to try again.</string>
+    <string name="summary_title">Space allocated</string>
+    <string name="summary_total">TF card capacity: %1$s</string>
+    <string name="summary_total_unknown">TF card capacity: unknown</string>
+    <string name="summary_android_value">Android · %1$s</string>
+    <string name="summary_linux_value">Linux · %1$s</string>
+    <string name="summary_side_not_allocated">Not allocated</string>
+    <string name="summary_side_unknown">Unknown</string>
+    <string name="summary_move_back_required">Move primary storage and installed apps off this card in Migration management before reallocating.</string>
+    <string name="summary_move_back_unknown">Installed apps could not be read, so reallocation is blocked. Open Migration management and move everything back first.</string>
+    <string name="summary_move_back_title">Move back first</string>
+    <string name="summary_move_back_required_message">This card still holds primary storage or installed apps. Open Migration management and move them back to Android storage first, then reallocate.</string>
+    <string name="summary_move_back_unknown_message">The installed app list could not be read, so reallocating is blocked to avoid losing data. Open Migration management, move everything back to Android storage, then retry.</string>
+    <string name="summary_migration_entry">Migration management</string>
+    <string name="summary_migration_unavailable">Migration management is not available yet.</string>
+    <string name="action_reallocate">Reallocate</string>
+    <string name="action_cancel_reallocate">Cancel reallocation</string>
 
     <string name="action_review">Confirm allocation plan</string>
     <string name="action_start">Erase &amp; partition</string>
@@ -74,6 +96,8 @@
     <!-- Handoff -->
     <string name="handoff_ready_title">Linux space allocated</string>
     <string name="handoff_ready_message">Boot into ArmadaOS on the internal storage, open Armada Installer and select TF card game library to finish formatting and connect it to Steam.</string>
+    <string name="handoff_android_ready_title">Android storage ready</string>
+    <string name="handoff_android_ready_message">The whole card is ready as Android adopted storage (%1$s). Use Migration management in this app to move apps and data.</string>
     <string name="handoff_failed_title">Linux handoff failed</string>
     <string name="handoff_failed_message">%1$s The card stays partitioned; retry the handoff write.</string>
     <string name="handoff_writing">Writing the Linux handoff…</string>
@@ -112,13 +136,83 @@
     <string name="err_handoff_write_failed">Writing the handoff failed.</string>
     <string name="err_generic">Operation failed (%1$s)</string>
 
+    <!-- Migration management -->
+    <string name="migration_title">Migration management</string>
+    <string name="migration_intro">Move primary shared storage and eligible apps between internal storage and this TF card.</string>
+    <string name="migration_card_line">TF card: %1$s · Free %2$s</string>
+    <string name="migration_card_line_unknown">TF card: capacity unknown</string>
+    <string name="migration_free_unknown">unknown</string>
+    <string name="migration_refresh">Refresh list</string>
+    <string name="migration_state_loading">Reading migration options…</string>
+    <string name="migration_state_load_failed">Could not read migration options. Refresh to try again.</string>
+    <string name="migration_state_not_ready">Waiting for the Shizuku connection…</string>
+    <string name="migration_state_unavailable">This card has no adopted private storage, so migration is unavailable.</string>
+    <string name="migration_primary_section">Shared files</string>
+    <string name="migration_primary_to_card">Move shared files to this card</string>
+    <string name="migration_primary_to_internal">Move shared files back to internal</string>
+    <string name="migration_primary_note">This moves primary shared storage only. It does not move every application.</string>
+    <string name="migration_primary_unavailable">The TF card is not mounted or writable, so shared files cannot be moved right now.</string>
+    <string name="migration_apps_section">Applications</string>
+    <string name="migration_apps_empty">No installed applications to manage.</string>
+    <string name="migration_apps_error">The installed app list could not be read. Refresh to try again.</string>
+    <string name="migration_apps_truncated">Only the first %1$d applications are listed.</string>
+    <string name="migration_app_location_internal">Internal storage</string>
+    <string name="migration_app_location_card">This TF card</string>
+    <string name="migration_app_location_other">Other storage</string>
+    <string name="migration_app_destination_card">Move to card</string>
+    <string name="migration_app_destination_internal">Move to internal</string>
+    <string name="migration_app_not_movable">Not movable</string>
+    <string name="migration_app_system">System applications cannot be moved.</string>
+    <string name="migration_app_device_admin">Device-admin applications cannot be moved.</string>
+    <string name="migration_confirm_title">Confirm move</string>
+    <string name="migration_confirm_primary">Move primary shared storage from %1$s to %2$s?\n\nThis does not move every application.</string>
+    <string name="migration_confirm_app">Move %1$s (%2$s) from %3$s to %4$s?</string>
+    <string name="migration_confirm_start">Start move</string>
+    <string name="migration_target_internal">Internal storage</string>
+    <string name="migration_target_card">This TF card</string>
+    <string name="migration_target_other">Other storage</string>
+    <string name="migration_target_unknown">Unknown destination</string>
+    <string name="migration_status_starting">Starting the move…</string>
+    <string name="migration_status_progress">Moving… %1$d%%</string>
+    <string name="migration_status_progress_unknown">Moving… the system has not reported progress yet.</string>
+    <string name="migration_status_completed">Move completed. The destination was verified.</string>
+    <string name="migration_status_failed">Move failed: %1$s</string>
+    <string name="migration_status_unverified">The move finished, but the destination could not be verified. No success is assumed and nothing was restarted.</string>
+    <string name="migration_status_card_changed">The card changed or is no longer readable. A saved result cannot be applied to the current card.</string>
+    <string name="migration_status_checking">Checking the saved move…</string>
+    <string name="migration_status_pending">A move was started but its result is unknown. Nothing will be restarted automatically.</string>
+    <string name="migration_logs_label">Logs</string>
+    <string name="migration_logs_empty">No migration events yet.</string>
+    <string name="migration_err_insufficient_storage">There is not enough free space at the destination.</string>
+    <string name="migration_err_package_missing">The application is no longer installed.</string>
+    <string name="migration_err_system_package">System applications cannot be moved.</string>
+    <string name="migration_err_invalid_location">The application install location does not allow this move.</string>
+    <string name="migration_err_operation_pending">Another package move is still pending. Try again shortly.</string>
+    <string name="migration_err_device_admin">Device-admin applications cannot be moved.</string>
+    <string name="migration_err_not_allowed">The system does not allow this application on internal storage.</string>
+    <string name="migration_err_locked_user">The user is locked. Unlock the device and try again.</string>
+    <string name="migration_err_failed_native">The system rejected the move.</string>
+    <string name="migration_err_destination_mismatch">The destination did not match the expected storage.</string>
+    <string name="migration_err_source_changed">The source changed. Refresh and try again.</string>
+    <string name="migration_err_target_not_mounted">The TF card is not mounted or not writable.</string>
+    <string name="migration_err_card">The card changed, is missing, or does not support migrations.</string>
+    <string name="migration_err_invalid_direction">This source and destination combination is not allowed.</string>
+    <string name="migration_err_package_not_eligible">This application cannot be moved.</string>
+    <string name="migration_err_app_query">The installed app list could not be read.</string>
+    <string name="migration_err_start_failed">The move could not be started. Refresh and try again.</string>
+    <string name="migration_err_unavailable">Privileged migration is unavailable.</string>
+    <string name="migration_err_busy">Another storage operation is already running.</string>
+    <string name="migration_err_generic">The move could not be completed.</string>
+
     <!-- Language / footer / version -->
     <string name="language_label">Language</string>
     <string name="language_chinese">中文</string>
     <string name="language_english">English</string>
-    <string name="footer_prefix"></string>
-    <string name="footer_name">Made by 单翼</string>
-    <string name="footer_suffix"></string>
+    <string name="footer_prefix">Author</string>
+    <string name="footer_name">单翼</string>
+    <string name="footer_suffix">Free software. Beware of scams.</string>
+    <string name="footer_bilibili">Bilibili</string>
+    <string name="footer_github">GitHub</string>
     <string name="footer_open_failed">Could not open the link.</string>
     <string name="version_label">Version %1$s</string>
 </resources>

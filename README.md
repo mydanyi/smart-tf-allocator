@@ -14,10 +14,11 @@ Split a microSD card between Android app storage and a Linux game library with a
 
 ## Features
 
-- Choose how much space goes to Android and Linux, with a live capacity estimate and an Android share of 10%–90%.
-- Set up Android adopted storage for supported apps and their data.
-- Prepare a companion partition that Armada Installer can recognize and format as a Linux game library.
+- Choose how much space goes to Android and Linux, with a live capacity estimate. The middle of the slider (an Android share of 10%–90%) creates a mixed card; either end gives the whole card to a single system.
+- Set up Android adopted storage for supported apps and their data, including a card that is entirely Android storage.
+- Prepare a companion partition that Armada Installer can recognize and format as a Linux game library, or hand the whole card to Linux.
 - Use Shizuku on an unrooted device, or start Shizuku with root on a rooted device.
+- Work on non-root firmware that blocks reading the card's hardware CID: the app identifies the card by its volume instead, so no root or security setting is needed. A Linux share created this way needs Armada Installer 0.5.0 or later; cards with a readable CID keep the existing flow.
 - Use the dark interface with touch or a controller, with a layout suited to landscape handheld screens.
 - Switch between English and Simplified Chinese in the app.
 - Turn runtime logs on or off and copy them when reporting a problem.
@@ -27,7 +28,7 @@ Split a microSD card between Android app storage and a Linux game library with a
 - Android 8.0 or later and a microSD card slot.
 - Firmware that supports Android adoptable storage. Availability depends on the device firmware.
 - [Shizuku](https://shizuku.rikka.app/) installed, running and authorized for this app.
-- For the Linux side: ArmadaOS installed on internal storage and an [Armada Installer](https://github.com/mydanyi/armada-installer) version with **TF game library** support.
+- For the Linux side: ArmadaOS installed on internal storage and an [Armada Installer](https://github.com/mydanyi/armada-installer) version with **TF game library** support. An all-Linux card needs that version; if the firmware hides the card's hardware CID, the Linux share also needs Armada Installer 0.5.0 or later. An all-Android card needs no Linux step.
 
 This app does not install ArmadaOS. For system images and device support, see the official [ArmadaOS project](https://github.com/armada-os/armada).
 
@@ -36,10 +37,10 @@ This app does not install ArmadaOS. For system images and device support, see th
 1. Back up the TF card, then install the APK from [Releases](https://github.com/mydanyi/smart-tf-allocator/releases/latest).
 2. Start Shizuku and authorize Smart TF Card Allocator. On Android 11 or later, wireless debugging lets you start Shizuku on the device without root. For other startup methods, follow the [official Shizuku guide](https://shizuku.rikka.app/guide/setup/) and the instructions shown by your installed version. After a reboot, start Shizuku again if needed.
 3. Open the app, select the TF card and use **Rescan** if needed.
-4. Move the slider to choose the Android/Linux split. Capacities are approximate and allow for Android storage metadata.
+4. Move the slider to choose the split. The ends give the whole card to one system; the 10%–90% Android range shares the card. Capacities are approximate and allow for Android storage metadata.
 5. Select **Confirm allocation plan**, check the selected card and sizes, then select **Erase & partition** to proceed.
-6. Keep the card inserted and the app open until allocation and the Linux handoff write finish. If only the handoff write fails, use **Retry write**.
-7. Boot ArmadaOS from internal storage. In Armada Installer, choose **TF game library**, select the matching card and follow the prompts to format and mount its Linux partition and connect the game library.
+6. Keep the card inserted and the app open until allocation finishes and, if you kept a Linux share, the Linux handoff write also finishes. If only the handoff write fails, use **Retry write**. An all-Android card finishes with no Linux step.
+7. If you allocated Linux space, boot ArmadaOS from internal storage. In Armada Installer, choose **TF game library**, select the matching card and follow the prompts to format and mount its Linux partition and connect the game library.
 
 | Component | Responsibility |
 | --- | --- |

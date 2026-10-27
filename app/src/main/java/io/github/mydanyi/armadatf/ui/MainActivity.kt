@@ -34,8 +34,8 @@ import android.widget.TextView
 import android.widget.Toast
 import io.github.mydanyi.armadatf.BuildConfig
 import io.github.mydanyi.armadatf.R
+import io.github.mydanyi.armadatf.domain.AllocationMode
 import io.github.mydanyi.armadatf.domain.AllocationPolicy
-import io.github.mydanyi.armadatf.domain.DiskSnapshot
 import io.github.mydanyi.armadatf.storage.HandoffException
 import io.github.mydanyi.armadatf.storage.HandoffWriter
 import org.json.JSONObject
@@ -65,6 +65,9 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     private lateinit var workspacePanels: LinearLayout
     private lateinit var cardPanel: LinearLayout
     private lateinit var allocationPanel: LinearLayout
+    private lateinit var allocationEditor: LinearLayout
+    private lateinit var allocationSummaryGroup: LinearLayout
+    private lateinit var textInspectionState: TextView
     private lateinit var headerTextGroup: LinearLayout
     private lateinit var versionText: TextView
     private lateinit var shizukuStateText: TextView
@@ -80,6 +83,13 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     private lateinit var seekAllocation: SeekBar
     private lateinit var textCapacity: TextView
     private lateinit var buttonReview: Button
+    private lateinit var textSummaryTotal: TextView
+    private lateinit var textSummaryAndroid: TextView
+    private lateinit var textSummaryLinux: TextView
+    private lateinit var textSummaryMoveBack: TextView
+    private lateinit var buttonManageMigration: Button
+    private lateinit var buttonReallocate: Button
+    private lateinit var buttonCancelReallocate: Button
     private lateinit var textStatus: TextView
     private lateinit var handoffGroup: LinearLayout
     private lateinit var textHandoffTitle: TextView
@@ -92,6 +102,9 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     private var logDrawer: View? = null
     private var buttonCloseLogs: Button? = null
     private var shizukuStatusDot: View? = null
+    // Landscape-only scroll container for the allocation content; null in the
+    // base portrait layout, where the whole page scrolls instead.
+    private var allocationScroll: ScrollView? = null
     private lateinit var textFooterPrefix: TextView
     private lateinit var textFooterName: TextView
     private lateinit var textFooterSuffix: TextView
@@ -102,8 +115,27 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     }
 
     private var cards: List<ShizukuManager.CardInfo> = emptyList()
-    private var eligibleCards: List<ShizukuManager.CardInfo> = emptyList()
+    private var spinnerCards: List<ShizukuManager.CardInfo> = emptyList()
     private var selectedCard: ShizukuManager.CardInfo? = null
+    private var liveCardInfo: LiveCardInfo? = null
+    private var allocationSummary: AllocationSummary? = null
+    // True while the user explicitly chose the editor for an already allocated
+    // card. Only an explicit action (Reallocate), Cancel or a freshly verified
+    // partition changes it, so repeated old status callbacks can never close it.
+    private var editorChosenByUser = false
+    private var summaryInfoGeneration = 0
+    private var applyingCardSelection = false
+    private var pendingRestoreCardId: String? = null
+    private var pendingRestoreSeek: Int? = null
+    // A successful live inspection of the selected card; reallocation must not
+    // rely on an older snapshot after a failed refresh.
+    private var inspectionFresh = false
+    private var inspectionFailed = false
+    private var awaitingPartitionResult = false
+    private var operationCardId: String? = null
+    private var operationMode: AllocationMode? = null
+    private var lastPartitionCompletion = AllocationCompletion.NONE
+    private var lastPartitionLinuxAllocated = false
     private var lastLogs: List<ShizukuManager.LogEntry> = emptyList()
     private val localLogs = ArrayDeque<ShizukuManager.LogEntry>()
 
@@ -111,6 +143,9 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     private var handoffWriting = false
     private var handoffReady = false
     private var savedHandoff: JSONObject? = null
+    // Kept across a status reconnect: the adopted card may no longer be listed
+    // as an eligible disk once it holds private storage.
+    private var androidReadyCapacity: String? = null
     private var refreshingDisks = false
     private var languageInitialized = false
     private var activeDialog: AlertDialog? = null
@@ -127,7 +162,28 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         manager = ShizukuManager.get(this)
+        // A configuration/language recreate restores the same selection, editor
+        // choice and slider position. A real relaunch has no saved state and
+        // derives the current card state from the live native inspection.
+        pendingRestoreCardId = savedInstanceState?.getString(STATE_CARD_ID)
+        pendingRestoreSeek = savedInstanceState?.getInt(STATE_SEEK_PROGRESS, -1)
+            ?.takeIf { it >= 0 }
+        editorChosenByUser = savedInstanceState?.getBoolean(STATE_EDITOR_OPEN, false) ?: false
+        awaitingPartitionResult =
+            savedInstanceState?.getBoolean(STATE_AWAITING_PARTITION, false) ?: false
         inflateContentViews()
+        pendingRestoreSeek?.let { progress ->
+            seekAllocation.progress = AllocationPolicy.snapPercent(progress)
+            updateAllocationLabels()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_CARD_ID, selectedCard?.id)
+        outState.putInt(STATE_SEEK_PROGRESS, seekAllocation.progress)
+        outState.putBoolean(STATE_EDITOR_OPEN, editorChosenByUser)
+        outState.putBoolean(STATE_AWAITING_PARTITION, awaitingPartitionResult)
     }
 
     override fun onStart() {
@@ -165,9 +221,9 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         // Rebind presentation only: no partition/prepare/status-recovery/
         // handoff write/scan/polling is ever triggered here.
         populateCardSpinner()
-        val index = eligibleCards.indexOfFirst { it.id == selectedCardId }
+        val index = spinnerCards.indexOfFirst { it.id == selectedCardId }
         if (index >= 0) {
-            selectedCard = eligibleCards[index]
+            selectedCard = spinnerCards[index]
             cardSpinner.setSelection(index, false)
         } else if (selectedCardId == null) {
             selectedCard = null
@@ -181,6 +237,8 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         textHandoffTitle.text = handoffTitle
         textHandoffMessage.text = handoffMessage
         buttonRetryHandoff.visibility = retryVisibility
+        // Rebuilt tree: show a restored visible result again without touching state.
+        revealHandoff()
         updateShizukuText(manager.currentState(), manager.currentIdentity())
         updateControls()
         renderLogs()
@@ -227,6 +285,9 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         workspacePanels = findViewById(R.id.workspace_panels)
         cardPanel = findViewById(R.id.card_panel)
         allocationPanel = findViewById(R.id.allocation_panel)
+        allocationEditor = findViewById(R.id.allocation_editor)
+        allocationSummaryGroup = findViewById(R.id.allocation_summary_group)
+        textInspectionState = findViewById(R.id.text_inspection_state)
         headerTextGroup = findViewById(R.id.header_text_group)
         versionText = findViewById(R.id.version_text)
         shizukuStateText = findViewById(R.id.shizuku_state_text)
@@ -242,6 +303,13 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         seekAllocation = findViewById(R.id.seek_allocation)
         textCapacity = findViewById(R.id.text_capacity)
         buttonReview = findViewById(R.id.button_review)
+        textSummaryTotal = findViewById(R.id.text_summary_total)
+        textSummaryAndroid = findViewById(R.id.text_summary_android)
+        textSummaryLinux = findViewById(R.id.text_summary_linux)
+        textSummaryMoveBack = findViewById(R.id.text_summary_move_back)
+        buttonManageMigration = findViewById(R.id.button_manage_migration)
+        buttonReallocate = findViewById(R.id.button_reallocate)
+        buttonCancelReallocate = findViewById(R.id.button_cancel_reallocate)
         textStatus = findViewById(R.id.text_status)
         handoffGroup = findViewById(R.id.handoff_group)
         textHandoffTitle = findViewById(R.id.text_handoff_title)
@@ -258,6 +326,8 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         logDrawer = findViewById(R.id.log_drawer)
         buttonCloseLogs = findViewById(R.id.button_close_logs)
         shizukuStatusDot = findViewById(R.id.shizuku_status_dot)
+        // Landscape-only allocation content scroller; null in the base layout.
+        allocationScroll = findViewById(R.id.allocation_scroll)
         // Status line carries 8dp+ padding: keep it fully gone while blank.
         textStatus.visibility = View.GONE
         textStatus.addTextChangedListener(object : TextWatcher {
@@ -307,10 +377,13 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     private fun setupSeekBar() {
         seekAllocation.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                // Keep the real accepted range 10..90; snapping back here does
-                // not recurse because the corrected value is always in range.
-                if (progress < SEEK_MIN_PERCENT || progress > SEEK_MAX_PERCENT) {
-                    seekAllocation.progress = progress.coerceIn(SEEK_MIN_PERCENT, SEEK_MAX_PERCENT)
+                // Accept the whole 0..100 range and snap onto the supported
+                // sequence (0, 10..90, 100) instead of clamping to 10..90. The
+                // corrected value is always supported, so the re-entrant set
+                // terminates immediately.
+                val snapped = AllocationPolicy.snapPercent(progress)
+                if (snapped != progress) {
+                    seekAllocation.progress = snapped
                     return
                 }
                 updateAllocationLabels()
@@ -319,15 +392,43 @@ class MainActivity : Activity(), ShizukuManager.Callback {
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
+        // Horizontal keys step onto the adjacent supported percentage
+        // (0 <-> 10 and 90 <-> 100 included) instead of the platform's 1-point
+        // move, which could land on an unformattable share. Both key edges are
+        // consumed here, only the press mutates, and every other key falls
+        // through so focus navigation is untouched.
+        seekAllocation.setOnKeyListener { _, keyCode, event ->
+            if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) {
+                return@setOnKeyListener false
+            }
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                val direction = if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
+                val next = AllocationPolicy.adjacentPercent(seekAllocation.progress, direction)
+                if (next != seekAllocation.progress) {
+                    seekAllocation.progress = next
+                }
+                updateAllocationLabels()
+            }
+            true
+        }
         updateAllocationLabels()
     }
 
     private fun setupCardSpinner() {
         cardSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedCard = eligibleCards.getOrNull(position)
-                updateAllocationLabels()
-                updateControls()
+                val card = spinnerCards.getOrNull(position)
+                if (applyingCardSelection) {
+                    selectedCard = card
+                    return
+                }
+                if (card?.id == selectedCard?.id) {
+                    selectedCard = card
+                    updateAllocationLabels()
+                    updateControls()
+                    return
+                }
+                onCardSelected(card)
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -343,6 +444,9 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         }
         buttonRefresh.setOnClickListener { refreshDisks(userInitiated = true) }
         buttonReview.setOnClickListener { performReview() }
+        buttonReallocate.setOnClickListener { enterReallocationEditor() }
+        buttonCancelReallocate.setOnClickListener { cancelReallocation() }
+        buttonManageMigration.setOnClickListener { openMigrationManager() }
         buttonRetryHandoff.setOnClickListener { retryHandoff() }
         buttonCopyLogs.setOnClickListener { copyLogs() }
         // Landscape drawer close goes through the Switch so the settings
@@ -354,7 +458,12 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         textFooterPrefix.text = getString(R.string.footer_prefix)
         textFooterName.text = getString(R.string.footer_name)
         textFooterSuffix.text = getString(R.string.footer_suffix)
-        textFooterName.setOnClickListener { openMakerLink() }
+        findViewById<TextView>(R.id.text_footer_bilibili).setOnClickListener {
+            openFooterLink(MAKER_URL)
+        }
+        findViewById<TextView>(R.id.text_footer_github).setOnClickListener {
+            openFooterLink(GITHUB_PROFILE_URL)
+        }
     }
 
     private fun setupLogs() {
@@ -369,11 +478,28 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         renderLogs()
     }
 
+    override fun onBackPressed() {
+        if (activeDialog == null && logDrawer?.visibility == View.VISIBLE) {
+            switchShowLogs.isChecked = false
+            return
+        }
+        super.onBackPressed()
+    }
+
     private fun applyLogVisibility(show: Boolean) {
         val visibility = if (show) View.VISIBLE else View.GONE
-        // Landscape-only overlay drawer; the base layout keeps its inline
-        // log_panel / button_copy_logs behaviour.
-        logDrawer?.visibility = visibility
+        val drawer = logDrawer
+        if (drawer != null) {
+            // Landscape: log region appears BELOW both main columns; the card
+            // and allocation panels stay visible and enabled throughout.
+            val wasVisible = drawer.visibility == View.VISIBLE
+            drawer.visibility = visibility
+            if (show) {
+                buttonCloseLogs?.post { buttonCloseLogs?.requestFocus() }
+            } else if (wasVisible) {
+                switchShowLogs.post { switchShowLogs.requestFocus() }
+            }
+        }
         logPanel.visibility = visibility
         buttonCopyLogs.visibility = visibility
     }
@@ -391,7 +517,11 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         }
         when (state) {
             ShizukuManager.State.READY -> {
-                if (cards.isEmpty() && !refreshingDisks) refreshDisks(userInitiated = false)
+                if (cards.isEmpty() && !refreshingDisks) {
+                    refreshDisks(userInitiated = false)
+                } else {
+                    selectedCard?.let { requestSummaryInfo(it.id) }
+                }
                 manager.requestStatus { status, _ -> status?.let { handleStatus(it) } }
             }
             ShizukuManager.State.BINDER_LOST -> {
@@ -406,6 +536,20 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         handleStatus(status)
     }
 
+    /**
+     * Terminal migration results refresh the live summary; any migration state
+     * change re-evaluates the destructive-action gate. No start is repeated.
+     */
+    override fun onMigrationStatus(
+        status: ShizukuManager.MigrationStatus?,
+        error: ShizukuManager.IpcError?,
+    ) {
+        if (status != null && status.state != STATE_RUNNING) {
+            selectedCard?.let { requestSummaryInfo(it.id) }
+        }
+        updateControls()
+    }
+
     private fun handleStatus(status: ShizukuManager.OperationStatus) {
         lastLogs = status.logs
         when (status.state) {
@@ -415,6 +559,14 @@ class MainActivity : Activity(), ShizukuManager.Callback {
                 handoffGroup.visibility = View.GONE
                 handoffReady = false
                 savedHandoff = null
+                androidReadyCapacity = null
+                // The old live snapshot no longer describes the card being
+                // rewritten; only the fresh post-success inspection may.
+                liveCardInfo = null
+                allocationSummary = null
+                inspectionFresh = false
+                inspectionFailed = false
+                invalidateSummaryInfo()
                 textStatus.text = phaseText(status.phase)
                 manager.startPolling()
             }
@@ -423,11 +575,23 @@ class MainActivity : Activity(), ShizukuManager.Callback {
                 setKeepScreenOn(false)
                 manager.stopPolling()
                 textStatus.text = getString(R.string.phase_partitioned)
-                val handoff = status.handoff
-                if (handoff != null) maybeWriteHandoff(handoff) else recoverPendingHandoff()
+                val newlyCompleted = awaitingPartitionResult
+                awaitingPartitionResult = false
+                if (status.phase == PHASE_ANDROID_READY) {
+                    // Verified all-Android layout: there is no Linux partition
+                    // and therefore no handoff to write or recover.
+                    onAndroidReady()
+                } else {
+                    val handoff = status.handoff
+                    if (handoff != null) maybeWriteHandoff(handoff) else recoverPendingHandoff()
+                }
+                if (newlyCompleted) {
+                    recordVerifiedCompletion(status)
+                }
             }
             STATE_FAILED -> {
                 operationBusy = false
+                awaitingPartitionResult = false
                 setKeepScreenOn(false)
                 manager.stopPolling()
                 textStatus.text = getString(R.string.phase_failed) + ": " + localizedError(status.detail)
@@ -440,6 +604,45 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         }
         updateControls()
         renderLogs()
+    }
+
+    /**
+     * Records the layout a partition that this Activity started has just
+     * verified, then refreshes the live volumes. Only this path closes a
+     * reallocation editor; a repeated old `partitioned` callback never does.
+     */
+    private fun recordVerifiedCompletion(status: ShizukuManager.OperationStatus) {
+        val mode = operationMode
+        val androidReady = status.phase == PHASE_ANDROID_READY
+        // A live handoff with an explicit null private identifier is the
+        // all-Linux schema; this also covers a run recovered after a restart
+        // where the in-memory mode is gone.
+        val handoffLinuxOnly = status.handoff?.let {
+            it.has("private_fs_uuid") && it.isNull("private_fs_uuid")
+        } == true
+        val linuxOnly = !androidReady &&
+            (mode == AllocationMode.LINUX_ONLY || (mode == null && handoffLinuxOnly))
+        lastPartitionCompletion = when {
+            androidReady -> AllocationCompletion.ADOPTED
+            linuxOnly -> AllocationCompletion.VERIFIED_LINUX_ONLY
+            else -> AllocationCompletion.ADOPTED
+        }
+        lastPartitionLinuxAllocated = when {
+            androidReady -> false
+            linuxOnly -> false
+            mode == AllocationMode.MIXED -> true
+            else -> status.handoff?.let { !it.isNull("private_fs_uuid") } ?: true
+        }
+        if (linuxOnly) persistVerifiedFromHandoff(status.handoff)
+
+        val cardId = operationCardId ?: selectedCard?.id
+        operationMode = null
+        operationCardId = null
+        if (cardId != null && manager.currentState() == ShizukuManager.State.READY) {
+            requestSummaryInfo(cardId, afterSuccess = true)
+        } else {
+            applyUnknownSummaryAfterSuccess()
+        }
     }
 
     // --- card / allocation rendering ----------------------------------------
@@ -457,47 +660,78 @@ class MainActivity : Activity(), ShizukuManager.Callback {
             populateCardSpinner()
             updateShizukuText(manager.currentState(), manager.currentIdentity())
             updateControls()
+            // Re-read the live volumes of the selected card so capacities and
+            // the completed state always follow the card that is in the slot.
+            selectedCard?.let { requestSummaryInfo(it.id) }
         }
     }
 
     private fun clearCards() {
         cards = emptyList()
-        eligibleCards = emptyList()
+        spinnerCards = emptyList()
         selectedCard = null
+        liveCardInfo = null
+        allocationSummary = null
+        editorChosenByUser = false
+        inspectionFresh = false
+        inspectionFailed = false
+        pendingRestoreCardId = null
+        invalidateSummaryInfo()
         populateCardSpinner()
+        updateControls()
     }
 
     private fun populateCardSpinner() {
-        eligibleCards = cards.filter { it.eligible }
-        val labels: List<String> = if (eligibleCards.isEmpty()) {
-            listOf(fallbackCardLabel())
+        // Every inserted SD disk stays selectable: an already adopted card may
+        // no longer report itself as eligible for a fresh partition, but its
+        // completed summary must still be reachable after a relaunch.
+        spinnerCards = cards
+        val labels: List<String> = if (spinnerCards.isEmpty()) {
+            listOf(getString(R.string.card_none))
         } else {
-            eligibleCards.map { cardLabel(it) }
+            spinnerCards.map { cardLabel(it) }
         }
         val adapter = ArrayAdapter(this, R.layout.item_spinner, labels)
         adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
         cardSpinner.adapter = adapter
-        if (eligibleCards.isNotEmpty()) {
+
+        val previousId = selectedCard?.id ?: pendingRestoreCardId
+        applyingCardSelection = true
+        if (spinnerCards.isEmpty()) {
             cardSpinner.setSelection(0, false)
-            selectedCard = eligibleCards.first()
-        } else {
             selectedCard = null
+        } else {
+            val index = spinnerCards.indexOfFirst { it.id == previousId }
+                .takeIf { it >= 0 } ?: 0
+            cardSpinner.setSelection(index, false)
+            selectedCard = spinnerCards[index]
+        }
+        applyingCardSelection = false
+        pendingRestoreCardId = null
+        if (previousId != null && selectedCard?.id != previousId) {
+            // A different card is now selected: nothing from the old card may
+            // survive as a stale summary.
+            liveCardInfo = null
+            allocationSummary = null
+            editorChosenByUser = false
+            inspectionFresh = false
+            inspectionFailed = false
+            invalidateSummaryInfo()
         }
         updateAllocationLabels()
     }
 
-    private fun fallbackCardLabel(): String {
-        val first = cards.firstOrNull()
-        val reason = first?.reason
-        return if (first != null && reason != null) {
-            getString(R.string.card_not_eligible, localizedReason(reason))
-        } else {
-            getString(R.string.card_none)
-        }
-    }
-
+    /**
+     * Size and, only when the firmware exposes a readable CID, its short form.
+     * A volume-identity card shows no CID bullet at all rather than a device
+     * path or a fabricated value.
+     */
     private fun cardLabel(card: ShizukuManager.CardInfo): String =
-        formatBytes(card.sizeBytes) + " · " + shortCid(card.cid)
+        if (card.cid.isEmpty()) {
+            formatBytes(card.sizeBytes)
+        } else {
+            formatBytes(card.sizeBytes) + " · " + shortCid(card.cid)
+        }
 
     private fun shortCid(cid: String): String =
         if (cid.length > 10) cid.substring(0, 8) + "…" else cid
@@ -513,24 +747,305 @@ class MainActivity : Activity(), ShizukuManager.Callback {
             ?: getString(R.string.allocation_capacity_placeholder)
         textLinuxCapacity.text = capacity?.second?.let(::formatBytes)
             ?: getString(R.string.allocation_capacity_placeholder)
-        textCapacity.text = if (card != null && card.eligible) {
-            getString(R.string.usable_capacity, formatBytes(card.sizeBytes))
-        } else {
-            getString(R.string.allocation_card_unknown)
+
+        val summary = allocationSummary
+        if (summary != null && !editorChosenByUser) {
+            // Completed summary: the card line follows the live disk capacity,
+            // never the slider's current (possibly untouched) position.
+            textCapacity.text = summary.totalBytes?.let {
+                getString(R.string.usable_capacity, formatBytes(it))
+            } ?: getString(R.string.allocation_card_unknown)
+            return
+        }
+
+        val usable = if (card != null && card.eligible) formatBytes(card.sizeBytes) else null
+        textCapacity.text = when {
+            card != null && !card.eligible -> getString(
+                R.string.card_not_eligible,
+                localizedReason(card.reason ?: REASON_UNKNOWN),
+            )
+            usable == null -> getString(R.string.allocation_card_unknown)
+            // The endpoints are whole-card layouts, so name the selected mode
+            // in the existing capacity hint instead of adding a new view.
+            androidPercent == 100 -> getString(R.string.allocation_mode_android_only, usable)
+            androidPercent == 0 -> getString(R.string.allocation_mode_linux_only, usable)
+            else -> getString(R.string.usable_capacity, usable)
         }
     }
 
+    /**
+     * Approximate split for the selected card. Uses the pure size/ratio maths:
+     * the UI never needs to claim a physical identity, so a card whose CID is
+     * hidden by the firmware still shows real capacities.
+     */
     private fun approximateCapacity(
         card: ShizukuManager.CardInfo,
         androidPercent: Int,
     ): Pair<Long, Long>? = try {
-        val snapshot = DiskSnapshot(card.id, card.sizeBytes, card.cid, true, true)
-        AllocationPolicy.capacity(AllocationPolicy.plan(snapshot, 100 - androidPercent))
+        AllocationPolicy.capacity(card.sizeBytes, 100 - androidPercent)
     } catch (t: Exception) {
         null
     }
 
-    private fun androidPercent(): Int = seekAllocation.progress.coerceIn(SEEK_MIN_PERCENT, SEEK_MAX_PERCENT)
+    private fun androidPercent(): Int = AllocationPolicy.snapPercent(seekAllocation.progress)
+
+    // --- completed summary / reallocation ------------------------------------
+
+    private fun onCardSelected(card: ShizukuManager.CardInfo?) {
+        selectedCard = card
+        liveCardInfo = null
+        allocationSummary = null
+        editorChosenByUser = false
+        inspectionFresh = false
+        inspectionFailed = false
+        invalidateSummaryInfo()
+        updateAllocationLabels()
+        updateControls()
+        card?.let { requestSummaryInfo(it.id) }
+    }
+
+    /** Drops every pending read-only snapshot so it cannot land on a new card. */
+    private fun invalidateSummaryInfo() {
+        summaryInfoGeneration++
+    }
+
+    /**
+     * Read-only live card inspection for the summary. [afterSuccess] is set
+     * only when a partition that this Activity started has just been verified:
+     * that is the single case where the editor is closed automatically.
+     */
+    private fun requestSummaryInfo(cardId: String, afterSuccess: Boolean = false) {
+        // A new read invalidates the freshness even when an older snapshot is
+        // still on screen: reallocation waits for this answer.
+        inspectionFresh = false
+        inspectionFailed = false
+        // Reallocation is disabled while this answer is outstanding.
+        updateControls()
+        if (manager.currentState() != ShizukuManager.State.READY) return
+        val generation = ++summaryInfoGeneration
+        manager.requestMigrationInfo(cardId) { info, error ->
+            // A late answer for an older request or for a card the user has
+            // already left must never be rendered.
+            if (generation != summaryInfoGeneration) return@requestMigrationInfo
+            if (selectedCard?.id != cardId) return@requestMigrationInfo
+            if (error != null) {
+                if (error.code != ERR_NOT_READY) {
+                    pushLocalLog(LEVEL_WARN, error.code, error.detail)
+                }
+                if (liveCardInfo == null) inspectionFailed = true
+                if (afterSuccess) {
+                    applyUnknownSummaryAfterSuccess()
+                } else {
+                    updateControls()
+                }
+                return@requestMigrationInfo
+            }
+            info?.let { applyLiveCardInfo(it, afterSuccess) }
+        }
+    }
+
+    private fun applyLiveCardInfo(info: LiveCardInfo, afterSuccess: Boolean) {
+        liveCardInfo = info
+        inspectionFresh = true
+        inspectionFailed = false
+        val stored = AppSettings.verifiedLinuxCard(this)
+        if (stored != null && stored.isContradictedBy(info)) {
+            // The live card actively disagrees with the stored proof (swapped
+            // card, resize, repartition or another public volume): drop it.
+            AppSettings.setVerifiedLinuxCard(this, null)
+        }
+        if (afterSuccess) {
+            if (info.layout == LiveCardInfo.LAYOUT_PUBLIC_ONLY) {
+                VerifiedLinuxCard.from(info)?.let { AppSettings.setVerifiedLinuxCard(this, it) }
+            } else {
+                AppSettings.setVerifiedLinuxCard(this, null)
+            }
+        }
+        allocationSummary =
+            AllocationSummaryPolicy.summarize(info, AppSettings.verifiedLinuxCard(this))
+        if (afterSuccess) {
+            if (allocationSummary == null) {
+                // The native success is known but this read could not prove the
+                // layout identity; close the editor with an explicit unknown
+                // summary instead of showing the default slider again.
+                applyUnknownSummaryAfterSuccess()
+                return
+            }
+            editorChosenByUser = false
+        }
+        updateAllocationLabels()
+        updateControls()
+    }
+
+    /**
+     * Safety net for the rare case where the partition succeeded but the live
+     * refresh failed: the verified mode is known, capacities are not, so the
+     * editor is closed with an explicitly unknown summary.
+     */
+    private fun applyUnknownSummaryAfterSuccess() {
+        val total = selectedCard?.sizeBytes?.takeIf { it > 0L }
+            ?: liveCardInfo?.diskBytes?.takeIf { it > 0L }
+        val summary = AllocationSummaryPolicy.unknownAfterCompletion(
+            lastPartitionCompletion,
+            total,
+            lastPartitionLinuxAllocated,
+        ) ?: return
+        allocationSummary = summary
+        editorChosenByUser = false
+        updateAllocationLabels()
+        updateControls()
+    }
+
+    private fun enterReallocationEditor() {
+        val summary = allocationSummary ?: return
+        if (!inspectionFresh || operationBusy || handoffWriting ||
+            manager.migrationActive || savedMigrationUnresolved()
+        ) {
+            return
+        }
+        if (summary.reallocationBlocked) {
+            showReallocationBlocked(summary)
+            return
+        }
+        // Explicit user choice: the original editor (warning, preview and
+        // destructive confirmation) is shown; nothing is formatted here.
+        editorChosenByUser = true
+        updateControls()
+    }
+
+    /** Returns to the summary without touching the card. */
+    private fun cancelReallocation() {
+        if (allocationSummary == null) return
+        editorChosenByUser = false
+        updateControls()
+    }
+
+    private fun showReallocationBlocked(summary: AllocationSummary) {
+        val title = getString(R.string.summary_move_back_title)
+        val message = if (summary.moveBackUnknown) {
+            getString(R.string.summary_move_back_unknown_message)
+        } else {
+            getString(R.string.summary_move_back_required_message)
+        }
+        if (summary.migrationEntryAvailable) {
+            showDialog(
+                title = title,
+                message = message,
+                positive = getString(R.string.summary_migration_entry),
+                negative = getString(R.string.action_close),
+                onPositive = { openMigrationManager() },
+            )
+        } else {
+            showDialog(
+                title = title,
+                message = message,
+                positive = getString(R.string.action_close),
+            )
+        }
+    }
+
+    private fun openMigrationManager() {
+        val card = selectedCard ?: return
+        if (operationBusy || handoffWriting) return
+        val intent = Intent()
+            .setClassName(packageName, MIGRATION_ACTIVITY)
+            .putExtra(EXTRA_DISK_ID, card.id)
+        try {
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.summary_migration_unavailable, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Persists the public volume identity of a just-verified Linux-only card. */
+    private fun persistVerifiedFromHandoff(handoff: JSONObject?) {
+        val json = handoff ?: return
+        val cardId = operationCardId ?: selectedCard?.id ?: return
+        val diskBytes = json.optLong("disk_bytes").takeIf { it > 0L }
+            ?: selectedCard?.sizeBytes?.takeIf { it > 0L }
+            ?: return
+        val cardCid = json.optString("card_cid").takeUnless { it == "null" }.orEmpty()
+        val publicFsUuid = json.optString("public_fs_uuid")
+            .takeUnless { it == "null" }.orEmpty().trim()
+        val publicPartGuid = json.optString("public_partition_guid")
+            .takeUnless { it == "null" }.orEmpty().trim()
+        if (publicFsUuid.isEmpty() && publicPartGuid.isEmpty()) return
+        AppSettings.setVerifiedLinuxCard(
+            this,
+            VerifiedLinuxCard(cardId, diskBytes, cardCid, publicFsUuid, publicPartGuid),
+        )
+    }
+
+    private fun allocationScreenState(): AllocationScreenState =
+        AllocationScreenPolicy.state(
+            hasCard = selectedCard != null,
+            liveInfo = liveCardInfo,
+            summary = allocationSummary,
+            inspectionFailed = inspectionFailed,
+            editorChosenByUser = editorChosenByUser,
+        )
+
+    private fun renderAllocationMode() {
+        val state = allocationScreenState()
+        val summary = allocationSummary
+        val showSummary = state == AllocationScreenState.SUMMARY && summary != null
+        val showEditor = state == AllocationScreenState.NO_CARD ||
+            state == AllocationScreenState.EDITOR
+        allocationSummaryGroup.visibility = if (showSummary) View.VISIBLE else View.GONE
+        allocationEditor.visibility = if (showEditor) View.VISIBLE else View.GONE
+        buttonReview.visibility = if (showEditor) View.VISIBLE else View.GONE
+        // A real, always reachable Cancel exists exactly while the editor was
+        // opened for an already allocated card.
+        buttonCancelReallocate.visibility =
+            if (state == AllocationScreenState.EDITOR && summary != null) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
+        textInspectionState.visibility = when (state) {
+            AllocationScreenState.INSPECTING,
+            AllocationScreenState.INSPECTION_FAILED -> View.VISIBLE
+            else -> View.GONE
+        }
+        textInspectionState.setText(
+            if (state == AllocationScreenState.INSPECTION_FAILED) {
+                R.string.allocation_inspection_failed
+            } else {
+                R.string.allocation_inspecting
+            },
+        )
+        if (!showSummary || summary == null) return
+
+        textSummaryTotal.text = summary.totalBytes?.let {
+            getString(R.string.summary_total, formatBytes(it))
+        } ?: getString(R.string.summary_total_unknown)
+        textSummaryAndroid.text = getString(
+            R.string.summary_android_value,
+            sideText(summary.androidState, summary.androidBytes),
+        )
+        textSummaryLinux.text = getString(
+            R.string.summary_linux_value,
+            sideText(summary.linuxState, summary.linuxBytes),
+        )
+        textSummaryMoveBack.visibility =
+            if (summary.reallocationBlocked) View.VISIBLE else View.GONE
+        textSummaryMoveBack.setText(
+            if (summary.moveBackUnknown) {
+                R.string.summary_move_back_unknown
+            } else {
+                R.string.summary_move_back_required
+            },
+        )
+        buttonManageMigration.visibility =
+            if (summary.migrationEntryAvailable) View.VISIBLE else View.GONE
+    }
+
+    private fun sideText(state: AllocationSideState, bytes: Long?): String = when (state) {
+        AllocationSideState.ALLOCATED ->
+            bytes?.let(::formatBytes) ?: getString(R.string.summary_side_unknown)
+        AllocationSideState.NOT_ALLOCATED -> getString(R.string.summary_side_not_allocated)
+        AllocationSideState.UNKNOWN -> getString(R.string.summary_side_unknown)
+    }
 
     // --- responsive layout ---------------------------------------------------
 
@@ -582,6 +1097,16 @@ class MainActivity : Activity(), ShizukuManager.Callback {
 
         headerTextGroup.orientation =
             if (widthDp >= 800) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+
+        val drawer = logDrawer
+        if (wide && drawer != null) {
+            val targetHeight = if (resources.configuration.screenHeightDp < 500) dp(96) else dp(144)
+            val params = drawer.layoutParams
+            if (params.height != targetHeight) {
+                params.height = targetHeight
+                drawer.layoutParams = params
+            }
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -591,6 +1116,12 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     private fun performReview() {
         val card = selectedCard ?: return
         if (!card.eligible || operationBusy || handoffWriting) return
+        operationCardId = card.id
+        operationMode = try {
+            AllocationMode.forPercent(100 - androidPercent())
+        } catch (t: IllegalArgumentException) {
+            null
+        }
         manager.prepare(card.id, androidPercent()) { ready, error ->
             if (error != null) {
                 showError(error)
@@ -629,6 +1160,7 @@ class MainActivity : Activity(), ShizukuManager.Callback {
             }
             if (status == null) return@start
             operationBusy = true
+            awaitingPartitionResult = true
             setKeepScreenOn(true)
             textStatus.text = getString(R.string.operation_busy)
             manager.startPolling()
@@ -695,6 +1227,34 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         }
     }
 
+    /**
+     * Presentation only: once the allocation content has been laid out, bring
+     * the handoff result to the top of the landscape scroll panel so a finished
+     * or failed run is never left below the fold. One-shot layout callback, no
+     * timer or polling, and a no-op where the layout has no allocation_scroll
+     * (base portrait).
+     */
+    private fun revealHandoff() {
+        val scroll = allocationScroll ?: return
+        if (handoffGroup.visibility != View.VISIBLE) return
+        scroll.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+            override fun onLayoutChange(
+                view: View,
+                left: Int,
+                top: Int,
+                right: Int,
+                bottom: Int,
+                oldLeft: Int,
+                oldTop: Int,
+                oldRight: Int,
+                oldBottom: Int,
+            ) {
+                view.removeOnLayoutChangeListener(this)
+                if (allocationScroll === scroll) scroll.scrollTo(0, handoffGroup.top)
+            }
+        })
+    }
+
     private fun onHandoffSuccess() {
         handoffReady = true
         textStatus.text = ""
@@ -704,6 +1264,7 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         textHandoffMessage.text = getString(R.string.handoff_ready_message)
         buttonRetryHandoff.visibility = View.GONE
         pushLocalLog(LEVEL_INFO, "handoff_ready", null)
+        revealHandoff()
     }
 
     private fun onHandoffFailure(code: String) {
@@ -714,20 +1275,91 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         textHandoffMessage.text = getString(R.string.handoff_failed_message, localizedError(code))
         buttonRetryHandoff.visibility = View.VISIBLE
         pushLocalLog(LEVEL_ERROR, code, null)
+        revealHandoff()
+    }
+
+    /**
+     * Renders the verified all-Android completion: the card is one adopted
+     * private volume, so only the Android capacity is reported and no Linux
+     * handoff exists.
+     *
+     * A pending payload left over from an earlier run is deleted after this
+     * verified success and never re-published; the saved payload/retry action
+     * are dropped so the Linux path cannot be presented as valid. Rendering is
+     * idempotent, so a status reconnect keeps the same fresh result.
+     */
+    private fun onAndroidReady() {
+        handoffReady = true
+        savedHandoff = null
+        androidOnlyCapacity()?.let { androidReadyCapacity = it }
+        handoffGroup.visibility = View.VISIBLE
+        textHandoffTitle.setText(R.string.handoff_android_ready_title)
+        textHandoffTitle.setTextColor(getColor(R.color.color_ok))
+        textHandoffMessage.text = getString(
+            R.string.handoff_android_ready_message,
+            androidReadyCapacity ?: getString(R.string.allocation_card_unknown),
+        )
+        buttonRetryHandoff.visibility = View.GONE
+        textStatus.text = ""
+        pushLocalLog(LEVEL_INFO, "android_ready", null)
+        revealHandoff()
+        clearPendingHandoff()
+        updateControls()
+    }
+
+    /**
+     * Deletes our own app-private pending handoff off the main thread. This only
+     * ever runs after a verified all-Android success; the published file on the
+     * card and any pending copy from a prepare/cancel/failure are left alone.
+     */
+    private fun clearPendingHandoff() {
+        handoffExecutor.execute {
+            val cleared = try {
+                HandoffWriter(this).clearPending()
+            } catch (t: Exception) {
+                false
+            }
+            if (!cleared) {
+                uiHandler.post { pushLocalLog(LEVEL_WARN, HANDOFF_CLEAR_FAILED, null) }
+            }
+        }
+    }
+
+    /** Android-only capacity for the finished card, or `null` when unknown. */
+    private fun androidOnlyCapacity(): String? {
+        val card = selectedCard ?: return null
+        if (!card.eligible) return null
+        val androidBytes = try {
+            AllocationPolicy.capacity(card.sizeBytes, 0).first
+        } catch (t: Exception) {
+            null
+        }
+        return androidBytes?.let(::formatBytes)
     }
 
     // --- controls / logs -----------------------------------------------------
 
     private fun updateControls() {
         val ready = manager.currentState() == ShizukuManager.State.READY
-        val busy = operationBusy || handoffWriting
+        val busy = operationBusy || handoffWriting || manager.migrationActive ||
+            savedMigrationUnresolved()
         val hasCard = selectedCard?.eligible == true
+        val screenState = allocationScreenState()
 
-        seekAllocation.isEnabled = !busy
-        cardSpinner.isEnabled = ready && !busy && eligibleCards.isNotEmpty()
+        renderAllocationMode()
+        seekAllocation.isEnabled = !busy && screenState == AllocationScreenState.EDITOR
+        cardSpinner.isEnabled = ready && !busy && spinnerCards.isNotEmpty()
         buttonRefresh.isEnabled = ready && !busy
-        buttonReview.isEnabled = ready && !busy && hasCard
+        buttonReview.isEnabled =
+            ready && !busy && hasCard && screenState == AllocationScreenState.EDITOR
         buttonRetryHandoff.isEnabled = !busy && savedHandoff != null
+        buttonReallocate.isEnabled =
+            !busy && screenState == AllocationScreenState.SUMMARY && inspectionFresh
+        // Migration management stays reachable while a migration runs so the
+        // progress can be reopened; partition work still blocks everything.
+        buttonManageMigration.isEnabled = !operationBusy && !handoffWriting
+        buttonCancelReallocate.isEnabled =
+            !busy && screenState == AllocationScreenState.EDITOR && allocationSummary != null
         languageSpinner.isEnabled = !busy
 
         val state = manager.currentState()
@@ -738,6 +1370,16 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         buttonAuthorize.isEnabled = !busy &&
             (state == ShizukuManager.State.PERMISSION_NEEDED || state == ShizukuManager.State.PERMISSION_DENIED)
         buttonOpenShizuku.isEnabled = !busy
+    }
+
+    /**
+     * A saved start/running handle blocks destructive actions even after the
+     * process was restarted and the manager no longer has the in-memory flag.
+     * Migration management stays reachable so the saved move can be resolved.
+     */
+    private fun savedMigrationUnresolved(): Boolean {
+        val handle = AppSettings.migrationHandle(this) ?: return false
+        return handle.state == MIGRATION_STATE_STARTING || handle.state == MIGRATION_STATE_RUNNING
     }
 
     private fun updateShizukuText(state: ShizukuManager.State, identity: String?) {
@@ -966,8 +1608,8 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         else -> getString(R.string.reason_unknown)
     }
 
-    private fun openMakerLink() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(MAKER_URL))
+    private fun openFooterLink(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         try {
             startActivity(intent)
         } catch (e: ActivityNotFoundException) {
@@ -1008,13 +1650,17 @@ class MainActivity : Activity(), ShizukuManager.Callback {
         // right are handled by Android, so A does nothing. A disabled or
         // non-action focused control must not trigger a different action.
         val focused = currentFocus
-        if (focused != null && focused.visibility == View.VISIBLE) {
+        if (focused != null && focused.isShown) {
             if (focused is SeekBar) return
             if (focused.isEnabled && focused.isClickable) {
                 focused.performClick()
             }
             return
         }
+
+        // If the log drawer is visible and no usable control has focus, skip the legacy allocation-action fallback.
+        // (applyLogVisibility requests focus on Close, and isShown/debounce checks above gate this path.)
+        if (logDrawer?.visibility == View.VISIBLE) return
 
         // Legacy fallback only when nothing usable is focused at all.
         if (buttonRetryHandoff.visibility == View.VISIBLE && buttonRetryHandoff.isEnabled) {
@@ -1043,16 +1689,26 @@ class MainActivity : Activity(), ShizukuManager.Callback {
     }
 
     private companion object {
-        const val SEEK_MIN_PERCENT = 10
-        const val SEEK_MAX_PERCENT = 90
         const val MAX_LOG_ENTRIES = 200
         const val GAMEPAD_DEBOUNCE_MS = 350L
         const val MAKER_URL = "https://space.bilibili.com/258786"
+        const val GITHUB_PROFILE_URL = "https://github.com/mydanyi"
+        const val MIGRATION_ACTIVITY = "io.github.mydanyi.armadatf.ui.MigrationActivity"
+        const val EXTRA_DISK_ID = "disk_id"
+        const val STATE_CARD_ID = "selected_card_id"
+        const val STATE_SEEK_PROGRESS = "seek_progress"
+        const val STATE_EDITOR_OPEN = "editor_open"
+        const val STATE_AWAITING_PARTITION = "awaiting_partition"
+        const val REASON_UNKNOWN = "unknown"
         const val ERR_NOT_READY = "service_not_ready"
         const val ERR_HANDOFF_WRITE_FAILED = "handoff_write_failed"
         const val STATE_RUNNING = "running"
         const val STATE_PARTITIONED = "partitioned"
         const val STATE_FAILED = "failed"
+        const val MIGRATION_STATE_STARTING = "starting"
+        const val MIGRATION_STATE_RUNNING = "running"
+        const val PHASE_ANDROID_READY = "android_ready"
+        const val HANDOFF_CLEAR_FAILED = "handoff_clear_failed"
         const val LEVEL_INFO = "info"
         const val LEVEL_WARN = "warn"
         const val LEVEL_ERROR = "error"

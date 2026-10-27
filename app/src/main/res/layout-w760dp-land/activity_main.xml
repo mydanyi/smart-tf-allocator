@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Landscape main page: fixed no-scroll composition aimed at 832x468dp and
-    960x540dp viewports (system bars included). The root is a plain FrameLayout
-    so the page gets the exact available viewport (no ScrollView UNSPECIFIED
-    remeasure/fillViewport growth); header and footer are compact rows and the
-    workspace fills the remaining height. The log drawer overlays the workspace
-    above the bottom action row so the Switch stays usable.
+    Landscape main page: fixed composition aimed at 832x468dp and 960x540dp
+    viewports (system bars included). The root is a plain FrameLayout so the
+    page gets the exact available viewport (no root-level ScrollView
+    UNSPECIFIED remeasure/fillViewport growth); header and footer are compact
+    rows and the workspace fills the remaining height. The workspace is a
+    vertical container whose top region holds a horizontal row of two main
+    columns (left card panel and right allocation panel) and whose bottom
+    region is a dedicated full-width log drawer that initially occupies no
+    space (GONE). When logs are shown, the drawer appears BELOW both columns
+    in normal layout flow, so the left card controls and the right allocation
+    summary/editor controls remain visible and enabled while Copy/Close stay
+    reachable; closing the logs collapses the drawer and returns its height to
+    the columns. Only the panels scroll internally, in bounded 0dp/weight
+    containers, so their 48dp action rows are never pushed off-screen. The
+    footer is a single compact 48dp row: author/name, Bilibili, GitHub and
+    free-software notice flow left-to-right inside a horizontal scroller for
+    narrow widths, with the version anchored at the far right.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
@@ -78,18 +89,20 @@
                 android:minWidth="96dp" />
         </LinearLayout>
 
-        <!-- Workspace + log drawer overlay -->
-        <FrameLayout
+        <!-- Vertical workspace: horizontal panel row on top, log region below -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:layout_marginTop="4dp"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="4dp"
+            android:orientation="vertical">
 
             <LinearLayout
                 android:id="@+id/workspace_panels"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:orientation="horizontal"
                 android:baselineAligned="false">
 
@@ -101,6 +114,17 @@
                     android:layout_height="match_parent"
                     android:layout_weight="3"
                     android:padding="6dp">
+
+                    <ScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:fillViewport="true"
+                        android:scrollbarStyle="insideOverlay">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -258,6 +282,8 @@
                         android:textSize="11sp"
                         android:includeFontPadding="false"
                         android:textColor="@color/color_muted" />
+                    </LinearLayout>
+                    </ScrollView>
                 </LinearLayout>
 
                 <!-- Allocation panel -->
@@ -266,315 +292,417 @@
                     style="@style/ArmadaPanel"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
+                    android:orientation="vertical"
                     android:layout_weight="7"
                     android:layout_marginStart="10dp"
                     android:padding="6dp">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingBottom="2dp">
-
-                        <TextView
-                            style="@style/ArmadaSectionTitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textSize="14sp"
-                            android:includeFontPadding="false"
-                            android:paddingBottom="0dp"
-                            android:text="@string/allocation_section" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:paddingStart="10dp"
-                            android:text="@string/allocation_intro"
-                            android:textSize="11sp"
-                            android:includeFontPadding="false"
-                            android:textColor="@color/color_muted"
-                            android:maxLines="1"
-                            android:ellipsize="end" />
-                    </LinearLayout>
-
-                    <!-- Android / Linux stats side by side, centered under each system -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:baselineAligned="false"
-                        android:paddingBottom="2dp">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center_horizontal">
-
-                            <LinearLayout
-                                android:layout_width="wrap_content"
-                                android:layout_height="36dp"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical">
-
-                                <ImageView
-                                    android:id="@+id/icon_android"
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:importantForAccessibility="no"
-                                    android:src="@drawable/ic_android" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:paddingStart="6dp"
-                                    android:text="@string/allocation_android"
-                                    android:textSize="14sp"
-                                    android:includeFontPadding="false"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/color_on_bg" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/caption_android"
-                                android:textSize="10sp"
-                                android:includeFontPadding="false"
-                                android:textColor="@color/color_muted" />
-
-                            <TextView
-                                android:id="@+id/text_android_capacity"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:paddingTop="2dp"
-                                android:text="@string/allocation_capacity_placeholder"
-                                android:textSize="32sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/color_android"
-                                android:autoSizeTextType="uniform"
-                                android:autoSizeMinTextSize="22sp"
-                                android:autoSizeMaxTextSize="32sp"
-                                android:autoSizeStepGranularity="2sp"
-                                android:maxLines="1" />
-
-                            <TextView
-                                android:id="@+id/text_android_percent"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:textSize="16sp"
-                                android:includeFontPadding="false"
-                                android:textStyle="bold"
-                                android:textColor="@color/color_android" />
-                        </LinearLayout>
-
-                        <View
-                            android:layout_width="1dp"
-                            android:layout_height="match_parent"
-                            android:layout_marginStart="10dp"
-                            android:layout_marginEnd="10dp"
-                            android:background="@color/color_outline" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:gravity="center_horizontal">
-
-                            <LinearLayout
-                                android:layout_width="wrap_content"
-                                android:layout_height="36dp"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical">
-
-                                <ImageView
-                                    android:id="@+id/icon_linux"
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:importantForAccessibility="no"
-                                    android:src="@drawable/ic_tux" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:paddingStart="6dp"
-                                    android:text="@string/allocation_linux"
-                                    android:textSize="14sp"
-                                    android:includeFontPadding="false"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/color_on_bg" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/caption_linux"
-                                android:textSize="10sp"
-                                android:includeFontPadding="false"
-                                android:textColor="@color/color_muted" />
-
-                            <TextView
-                                android:id="@+id/text_linux_capacity"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:paddingTop="2dp"
-                                android:text="@string/allocation_capacity_placeholder"
-                                android:textSize="32sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/color_linux"
-                                android:autoSizeTextType="uniform"
-                                android:autoSizeMinTextSize="22sp"
-                                android:autoSizeMaxTextSize="32sp"
-                                android:autoSizeStepGranularity="2sp"
-                                android:maxLines="1" />
-
-                            <TextView
-                                android:id="@+id/text_linux_percent"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:textSize="16sp"
-                                android:includeFontPadding="false"
-                                android:textStyle="bold"
-                                android:textColor="@color/color_linux" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <SeekBar
-                        android:id="@+id/seek_allocation"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:minHeight="8dp"
-                        android:maxHeight="8dp"
-                        android:max="100"
-                        android:progress="50"
-                        android:splitTrack="false"
-                        android:progressDrawable="@drawable/bg_progress"
-                        android:thumb="@drawable/progress_thumb"
-                        android:progressTint="@null"
-                        android:secondaryProgressTint="@null"
-                        android:backgroundTint="@null"
-                        android:thumbTint="@null" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:paddingBottom="2dp">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="@string/allocation_android"
-                            android:textSize="10sp"
-                            android:includeFontPadding="false"
-                            android:textColor="@color/color_muted" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="end"
-                            android:text="@string/allocation_linux"
-                            android:textSize="10sp"
-                            android:includeFontPadding="false"
-                            android:textColor="@color/color_muted" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingTop="2dp">
-
-                        <ImageView
-                            android:id="@+id/icon_warning"
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:importantForAccessibility="no"
-                            android:src="@drawable/ic_warning" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:paddingStart="6dp"
-                            android:text="@string/allocation_warning"
-                            android:textSize="12sp"
-                            android:includeFontPadding="false"
-                            android:textStyle="bold"
-                            android:textColor="@color/color_warning" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingTop="2dp"
-                        android:text="@string/allocation_linux_note"
-                        android:textSize="11sp"
-                        android:includeFontPadding="false"
-                        android:textColor="@color/color_muted" />
-
-                    <!-- Status -->
-                    <TextView
-                        android:id="@+id/text_status"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingTop="4dp"
-                        android:textSize="14sp"
-                        android:includeFontPadding="false"
-                        android:textColor="@color/color_accent" />
-
-                    <!-- Handoff result (scrolls internally for long runtime status) -->
-                    <LinearLayout
-                        android:id="@+id/handoff_group"
-                        style="@style/ArmadaCard"
-                        android:padding="10dp"
-                        android:layout_marginBottom="0dp"
-                        android:visibility="gone">
-
-                        <TextView
-                            android:id="@+id/text_handoff_title"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/color_ok" />
-
-                        <ScrollView
-                            android:layout_width="match_parent"
-                            android:layout_height="88dp"
-                            android:layout_marginTop="4dp"
-                            android:scrollbarStyle="insideOverlay">
-
-                            <TextView
-                                android:id="@+id/text_handoff_message"
-                                style="@style/ArmadaBody"
-                                android:textSize="13sp"
-                                android:paddingBottom="4dp" />
-                        </ScrollView>
-
-                        <Button
-                            android:id="@+id/button_retry_handoff"
-                            style="@style/ArmadaButtonSecondary"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:visibility="gone"
-                            android:text="@string/action_retry_handoff" />
-                    </LinearLayout>
-
-                    <Space
+                    <!-- Scrollable allocation content: a completed/failed handoff
+                         grows only this region, never the fixed action row below. -->
+                    <ScrollView
+                        android:id="@+id/allocation_scroll"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
-                        android:layout_weight="1" />
+                        android:layout_weight="1"
+                        android:fillViewport="true"
+                        android:scrollbars="vertical"
+                        android:scrollbarStyle="insideOverlay">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/ArmadaSectionTitle"
+                                android:textSize="14sp"
+                                android:includeFontPadding="false"
+                                android:paddingBottom="4dp"
+                                android:text="@string/allocation_section" />
+
+                            <!-- Live inspection in progress/failed: no editor or
+                                 review is shown until the card layout is known. -->
+                            <TextView
+                                android:id="@+id/text_inspection_state"
+                                style="@style/ArmadaBody"
+                                android:paddingTop="4dp"
+                                android:textSize="12sp"
+                                android:includeFontPadding="false"
+                                android:textColor="@color/color_muted"
+                                android:visibility="gone" />
+
+                            <!-- Completed allocation: replaces the whole editor. -->
+                            <LinearLayout
+                                android:id="@+id/allocation_summary_group"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:visibility="gone">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/summary_title"
+                                    android:textSize="15sp"
+                                    android:includeFontPadding="false"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/color_on_bg" />
+
+                                <TextView
+                                    android:id="@+id/text_summary_total"
+                                    style="@style/ArmadaBody"
+                                    android:paddingTop="2dp"
+                                    android:textSize="12sp"
+                                    android:includeFontPadding="false"
+                                    android:textColor="@color/color_muted" />
+
+                                <TextView
+                                    android:id="@+id/text_summary_android"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:paddingTop="8dp"
+                                    android:textSize="18sp"
+                                    android:includeFontPadding="false"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/color_android" />
+
+                                <TextView
+                                    android:id="@+id/text_summary_linux"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:paddingTop="4dp"
+                                    android:textSize="18sp"
+                                    android:includeFontPadding="false"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/color_linux" />
+
+                                <TextView
+                                    android:id="@+id/text_summary_move_back"
+                                    style="@style/ArmadaBody"
+                                    android:paddingTop="8dp"
+                                    android:textSize="12sp"
+                                    android:includeFontPadding="false"
+                                    android:textColor="@color/color_warning"
+                                    android:visibility="gone" />
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:paddingTop="8dp">
+
+                                    <Button
+                                        android:id="@+id/button_manage_migration"
+                                        style="@style/ArmadaButtonSecondary"
+                                        android:layout_width="0dp"
+                                        android:layout_height="48dp"
+                                        android:layout_weight="1"
+                                        android:textSize="13sp"
+                                        android:drawableStart="@drawable/ic_arrow_forward"
+                                        android:drawablePadding="6dp"
+                                        android:text="@string/summary_migration_entry" />
+
+                                    <Button
+                                        android:id="@+id/button_reallocate"
+                                        style="@style/ArmadaButtonPrimary"
+                                        android:layout_width="0dp"
+                                        android:layout_height="48dp"
+                                        android:layout_weight="1"
+                                        android:layout_marginStart="8dp"
+                                        android:textSize="13sp"
+                                        android:drawableStart="@drawable/ic_refresh"
+                                        android:drawablePadding="6dp"
+                                        android:text="@string/action_reallocate" />
+                                </LinearLayout>
+                            </LinearLayout>
+
+                            <!-- Allocation editor: original slider flow. -->
+                            <LinearLayout
+                                android:id="@+id/allocation_editor"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:paddingBottom="2dp"
+                                    android:text="@string/allocation_intro"
+                                    android:textSize="11sp"
+                                    android:includeFontPadding="false"
+                                    android:textColor="@color/color_muted"
+                                    android:maxLines="1"
+                                    android:ellipsize="end" />
+
+                                <!-- Android / Linux stats side by side, centered under each system -->
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:baselineAligned="false"
+                                    android:paddingBottom="2dp">
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:orientation="vertical"
+                                        android:gravity="center_horizontal">
+
+                                        <LinearLayout
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="36dp"
+                                            android:orientation="horizontal"
+                                            android:gravity="center_vertical">
+
+                                            <ImageView
+                                                android:id="@+id/icon_android"
+                                                android:layout_width="36dp"
+                                                android:layout_height="36dp"
+                                                android:importantForAccessibility="no"
+                                                android:src="@drawable/ic_android" />
+
+                                            <TextView
+                                                android:layout_width="wrap_content"
+                                                android:layout_height="wrap_content"
+                                                android:paddingStart="6dp"
+                                                android:text="@string/allocation_android"
+                                                android:textSize="14sp"
+                                                android:includeFontPadding="false"
+                                                android:textStyle="bold"
+                                                android:textColor="@color/color_on_bg" />
+                                        </LinearLayout>
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="@string/caption_android"
+                                            android:textSize="10sp"
+                                            android:includeFontPadding="false"
+                                            android:textColor="@color/color_muted" />
+
+                                        <TextView
+                                            android:id="@+id/text_android_capacity"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:gravity="center"
+                                            android:paddingTop="2dp"
+                                            android:text="@string/allocation_capacity_placeholder"
+                                            android:textSize="32sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/color_android"
+                                            android:autoSizeTextType="uniform"
+                                            android:autoSizeMinTextSize="22sp"
+                                            android:autoSizeMaxTextSize="32sp"
+                                            android:autoSizeStepGranularity="2sp"
+                                            android:maxLines="1" />
+
+                                        <TextView
+                                            android:id="@+id/text_android_percent"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:gravity="center"
+                                            android:textSize="16sp"
+                                            android:includeFontPadding="false"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/color_android" />
+                                    </LinearLayout>
+
+                                    <View
+                                        android:layout_width="1dp"
+                                        android:layout_height="match_parent"
+                                        android:layout_marginStart="10dp"
+                                        android:layout_marginEnd="10dp"
+                                        android:background="@color/color_outline" />
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:orientation="vertical"
+                                        android:gravity="center_horizontal">
+
+                                        <LinearLayout
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="36dp"
+                                            android:orientation="horizontal"
+                                            android:gravity="center_vertical">
+
+                                            <ImageView
+                                                android:id="@+id/icon_linux"
+                                                android:layout_width="36dp"
+                                                android:layout_height="36dp"
+                                                android:importantForAccessibility="no"
+                                                android:src="@drawable/ic_tux" />
+
+                                            <TextView
+                                                android:layout_width="wrap_content"
+                                                android:layout_height="wrap_content"
+                                                android:paddingStart="6dp"
+                                                android:text="@string/allocation_linux"
+                                                android:textSize="14sp"
+                                                android:includeFontPadding="false"
+                                                android:textStyle="bold"
+                                                android:textColor="@color/color_on_bg" />
+                                        </LinearLayout>
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="@string/caption_linux"
+                                            android:textSize="10sp"
+                                            android:includeFontPadding="false"
+                                            android:textColor="@color/color_muted" />
+
+                                        <TextView
+                                            android:id="@+id/text_linux_capacity"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:gravity="center"
+                                            android:paddingTop="2dp"
+                                            android:text="@string/allocation_capacity_placeholder"
+                                            android:textSize="32sp"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/color_linux"
+                                            android:autoSizeTextType="uniform"
+                                            android:autoSizeMinTextSize="22sp"
+                                            android:autoSizeMaxTextSize="32sp"
+                                            android:autoSizeStepGranularity="2sp"
+                                            android:maxLines="1" />
+
+                                        <TextView
+                                            android:id="@+id/text_linux_percent"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:gravity="center"
+                                            android:textSize="16sp"
+                                            android:includeFontPadding="false"
+                                            android:textStyle="bold"
+                                            android:textColor="@color/color_linux" />
+                                    </LinearLayout>
+                                </LinearLayout>
+
+                                <SeekBar
+                                    android:id="@+id/seek_allocation"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="48dp"
+                                    android:minHeight="8dp"
+                                    android:maxHeight="8dp"
+                                    android:max="100"
+                                    android:progress="50"
+                                    android:splitTrack="false"
+                                    android:progressDrawable="@drawable/bg_progress"
+                                    android:thumb="@drawable/progress_thumb"
+                                    android:progressTint="@null"
+                                    android:secondaryProgressTint="@null"
+                                    android:backgroundTint="@null"
+                                    android:thumbTint="@null" />
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:paddingBottom="2dp">
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="@string/allocation_android"
+                                        android:textSize="10sp"
+                                        android:includeFontPadding="false"
+                                        android:textColor="@color/color_muted" />
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="end"
+                                        android:text="@string/allocation_linux"
+                                        android:textSize="10sp"
+                                        android:includeFontPadding="false"
+                                        android:textColor="@color/color_muted" />
+                                </LinearLayout>
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical"
+                                    android:paddingTop="2dp">
+
+                                    <ImageView
+                                        android:id="@+id/icon_warning"
+                                        android:layout_width="14dp"
+                                        android:layout_height="14dp"
+                                        android:importantForAccessibility="no"
+                                        android:src="@drawable/ic_warning" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:paddingStart="6dp"
+                                        android:text="@string/allocation_warning"
+                                        android:textSize="12sp"
+                                        android:includeFontPadding="false"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/color_warning" />
+                                </LinearLayout>
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:paddingTop="2dp"
+                                    android:text="@string/allocation_linux_note"
+                                    android:textSize="11sp"
+                                    android:includeFontPadding="false"
+                                    android:textColor="@color/color_muted" />
+                            </LinearLayout>
+
+                            <!-- Status -->
+                            <TextView
+                                android:id="@+id/text_status"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:textSize="14sp"
+                                android:includeFontPadding="false"
+                                android:textColor="@color/color_accent" />
+
+                            <!-- Handoff result: grows the scrolling content, never clips it -->
+                            <LinearLayout
+                                android:id="@+id/handoff_group"
+                                style="@style/ArmadaCard"
+                                android:padding="10dp"
+                                android:layout_marginBottom="0dp"
+                                android:visibility="gone">
+
+                                <TextView
+                                    android:id="@+id/text_handoff_title"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:textSize="15sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/color_ok" />
+
+                                <TextView
+                                    android:id="@+id/text_handoff_message"
+                                    style="@style/ArmadaBody"
+                                    android:layout_marginTop="4dp"
+                                    android:textSize="13sp"
+                                    android:paddingBottom="4dp" />
+
+                                <Button
+                                    android:id="@+id/button_retry_handoff"
+                                    style="@style/ArmadaButtonSecondary"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:visibility="gone"
+                                    android:text="@string/action_retry_handoff" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </ScrollView>
 
                     <!-- Action row anchored to the bottom of the panel -->
                     <LinearLayout
@@ -601,6 +729,17 @@
                             android:layout_weight="1" />
 
                         <Button
+                            android:id="@+id/button_cancel_reallocate"
+                            style="@style/ArmadaButtonSecondary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:minWidth="96dp"
+                            android:layout_marginStart="8dp"
+                            android:textSize="13sp"
+                            android:visibility="gone"
+                            android:text="@string/action_cancel_reallocate" />
+
+                        <Button
                             android:id="@+id/button_review"
                             style="@style/ArmadaButtonPrimary"
                             android:layout_width="wrap_content"
@@ -612,141 +751,189 @@
                             android:text="@string/action_review" />
                     </LinearLayout>
                 </LinearLayout>
+
             </LinearLayout>
 
-            <!-- Log drawer: overlays the workspace, sits above the action row so
-                 the Switch stays reachable. Initially hidden. -->
-            <LinearLayout
-                android:id="@+id/log_drawer"
-                android:layout_width="match_parent"
-                android:layout_height="160dp"
-                android:layout_gravity="bottom"
-                android:layout_marginBottom="56dp"
-                android:orientation="vertical"
-                android:padding="10dp"
-                android:background="@drawable/bg_log_drawer"
-                android:visibility="gone">
-
+                <!-- Log pane: full-width region BELOW the two main columns.
+                     Initially hidden; layout flow only (never overlays panels). -->
                 <LinearLayout
+                    android:id="@+id/log_drawer"
+                    style="@style/ArmadaPanel"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <ImageView
-                        android:layout_width="16dp"
-                        android:layout_height="16dp"
-                        android:importantForAccessibility="no"
-                        android:src="@drawable/ic_log"
-                        android:tint="@color/color_muted" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingStart="8dp"
-                        android:text="@string/action_show_logs"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/color_on_bg" />
-
-                    <Space
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" />
-
-                    <Button
-                        android:id="@+id/button_close_logs"
-                        style="@style/ArmadaButtonSecondary"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:minWidth="72dp"
-                        android:textSize="13sp"
-                        android:text="@string/action_close" />
-                </LinearLayout>
-
-                <ScrollView
-                    android:id="@+id/log_panel"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:layout_marginTop="4dp"
-                    android:background="@drawable/bg_log"
-                    android:padding="8dp"
-                    android:scrollbarStyle="insideOverlay">
-
-                    <TextView
-                        android:id="@+id/text_log"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:textSize="12sp"
-                        android:textColor="@color/color_on_bg"
-                        android:textIsSelectable="true" />
-                </ScrollView>
-
-                <Button
-                    android:id="@+id/button_copy_logs"
-                    style="@style/ArmadaButtonSecondary"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="144dp"
                     android:layout_marginTop="6dp"
-                    android:textSize="13sp"
-                    android:text="@string/action_copy_logs" />
-            </LinearLayout>
-        </FrameLayout>
+                    android:orientation="vertical"
+                    android:padding="6dp"
+                    android:visibility="gone">
 
-        <!-- Compact footer: version left, credits right -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ic_log"
+                            android:tint="@color/color_muted" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="8dp"
+                            android:text="@string/action_show_logs"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/color_on_bg" />
+
+                        <Space
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
+
+                        <Button
+                            android:id="@+id/button_copy_logs"
+                            style="@style/ArmadaButtonSecondary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:minWidth="72dp"
+                            android:textSize="13sp"
+                            android:text="@string/action_copy_logs" />
+
+                        <Button
+                            android:id="@+id/button_close_logs"
+                            style="@style/ArmadaButtonSecondary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:minWidth="72dp"
+                            android:minHeight="48dp"
+                            android:layout_marginStart="6dp"
+                            android:textSize="13sp"
+                            android:focusableInTouchMode="true"
+                            android:text="@string/action_close" />
+                    </LinearLayout>
+
+                    <ScrollView
+                        android:id="@+id/log_panel"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_log"
+                        android:padding="8dp"
+                        android:scrollbarStyle="insideOverlay">
+
+                        <TextView
+                            android:id="@+id/text_log"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:textSize="12sp"
+                            android:textColor="@color/color_on_bg"
+                            android:textIsSelectable="true" />
+                    </ScrollView>
+                </LinearLayout>
+        </LinearLayout>
+
+        <!-- Footer: single compact row; credits/name/links/notice left, version right -->
         <LinearLayout
+            android:id="@+id/footer_row"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:padding="0dp">
+
+            <HorizontalScrollView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:fillViewport="false"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/text_footer_prefix"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:layout_marginEnd="8dp"
+                        android:textSize="12sp"
+                        android:textColor="@color/color_muted" />
+
+                    <TextView
+                        android:id="@+id/text_footer_name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:focusable="false"
+                        android:clickable="false"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/color_on_bg" />
+
+                    <TextView
+                        android:id="@+id/text_footer_bilibili"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:minHeight="48dp"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:text="@string/footer_bilibili"
+                        android:textSize="12sp"
+                        android:textColor="@color/color_accent"
+                        android:background="?android:attr/selectableItemBackground" />
+
+                    <TextView
+                        android:id="@+id/text_footer_github"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:minHeight="48dp"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:text="@string/footer_github"
+                        android:textSize="12sp"
+                        android:textColor="@color/color_accent"
+                        android:background="?android:attr/selectableItemBackground" />
+
+                    <TextView
+                        android:id="@+id/text_footer_suffix"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:layout_marginStart="8dp"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/color_on_bg" />
+                </LinearLayout>
+            </HorizontalScrollView>
 
             <TextView
                 android:id="@+id/version_text"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="end|center_vertical"
+                android:singleLine="true"
+                android:layout_marginStart="12dp"
                 android:textSize="12sp"
-                android:textColor="@color/color_muted" />
-
-            <Space
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/text_footer_prefix"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                android:textSize="13sp"
-                android:textColor="@color/color_muted" />
-
-            <TextView
-                android:id="@+id/text_footer_name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:minHeight="48dp"
-                android:minWidth="48dp"
-                android:gravity="center"
-                android:paddingStart="6dp"
-                android:paddingEnd="6dp"
-                android:drawableEnd="@drawable/ic_external_link_small"
-                android:drawablePadding="6dp"
-                android:focusable="true"
-                android:clickable="true"
-                android:textSize="12sp"
-                android:textStyle="normal"
-                android:textColor="@color/color_muted"
-                android:background="?android:attr/selectableItemBackground" />
-
-            <TextView
-                android:id="@+id/text_footer_suffix"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                android:gravity="center_vertical"
-                android:textSize="13sp"
                 android:textColor="@color/color_muted" />
         </LinearLayout>
     </LinearLayout>

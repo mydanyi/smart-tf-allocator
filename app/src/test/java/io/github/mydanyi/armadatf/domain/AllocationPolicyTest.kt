@@ -33,6 +33,13 @@ class AllocationPolicyTest {
 
         const val VALID_CID_LOWER = "1b2c3d4e5f60718293a4b5c6d7e8f901"
         const val VALID_CID_UPPER = "1B2C3D4E5F60718293A4B5C6D7E8F901"
+
+        const val MMC_PATH =
+            "/sys/devices/platform/soc/8804000.sdhci/mmc_host/mmc1/mmc1:b368/block/mmcblk1"
+        const val MMC_PATH_DOUBLED =
+            "/sys//devices/platform/soc/8804000.sdhci/mmc_host/mmc1/mmc1:b368/block/mmcblk1"
+        const val USB_PATH =
+            "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0/host4/target4:0:0/4:0:0:0/block/sda"
     }
 
     private fun disk(
@@ -41,12 +48,14 @@ class AllocationPolicyTest {
         cid: String = VALID_CID_LOWER,
         isSd: Boolean = true,
         isAdoptable: Boolean = true,
+        platformPath: String? = null,
     ): DiskSnapshot = DiskSnapshot(
         id = id,
         sizeBytes = sizeBytes,
         cid = cid,
         isSd = isSd,
         isAdoptable = isAdoptable,
+        platformPath = platformPath,
     )
 
     // ------------------------------------------------------------------
@@ -54,19 +63,24 @@ class AllocationPolicyTest {
     // ------------------------------------------------------------------
 
     @Test
-    fun isValidPercentAcceptsBoundsInclusive() {
+    fun isValidPercentAcceptsEndpointsAndMixedRange() {
+        assertTrue(AllocationPolicy.isValidPercent(0))
         assertTrue(AllocationPolicy.isValidPercent(10))
         assertTrue(AllocationPolicy.isValidPercent(50))
         assertTrue(AllocationPolicy.isValidPercent(90))
+        assertTrue(AllocationPolicy.isValidPercent(100))
     }
 
     @Test
-    fun isValidPercentRejectsOutOfRange() {
+    fun isValidPercentRejectsGapsOutsideTheContract() {
         assertFalse(AllocationPolicy.isValidPercent(9))
         assertFalse(AllocationPolicy.isValidPercent(91))
-        assertFalse(AllocationPolicy.isValidPercent(0))
-        assertFalse(AllocationPolicy.isValidPercent(100))
+        assertFalse(AllocationPolicy.isValidPercent(1))
+        assertFalse(AllocationPolicy.isValidPercent(5))
+        assertFalse(AllocationPolicy.isValidPercent(95))
+        assertFalse(AllocationPolicy.isValidPercent(99))
         assertFalse(AllocationPolicy.isValidPercent(-1))
+        assertFalse(AllocationPolicy.isValidPercent(101))
     }
 
     // ------------------------------------------------------------------
@@ -316,5 +330,83 @@ class AllocationPolicyTest {
 
         assertTrue(AllocationPolicy.matches(planFromLower, disk(cid = VALID_CID_UPPER)))
         assertTrue(AllocationPolicy.matches(planFromUpper, disk(cid = VALID_CID_LOWER)))
+    }
+
+    // ------------------------------------------------------------------
+    // Restricted-sysfs volume-identity fallback
+    // ------------------------------------------------------------------
+
+    @Test
+    fun planAcceptsAnEmptyCidWithAValidMmcPathAndNormalisesIt() {
+        val plan = AllocationPolicy.plan(
+            disk(cid = "", platformPath = MMC_PATH_DOUBLED),
+            50,
+        )
+
+        assertEquals("", plan.cardCid)
+        assertEquals(MMC_PATH, plan.platformPath)
+        assertEquals(50, plan.linuxPercent)
+    }
+
+    @Test
+    fun planRejectsAnEmptyCidWithoutAValidMmcPath() {
+        assertThrows(IllegalArgumentException::class.java) {
+            AllocationPolicy.plan(disk(cid = ""), 50)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AllocationPolicy.plan(disk(cid = "", platformPath = USB_PATH), 50)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AllocationPolicy.plan(disk(cid = "", platformPath = "/sys/class/block/mmcblk1"), 50)
+        }
+    }
+
+    @Test
+    fun capacityPureOverloadWorksWithoutAPhysicalIdentity() {
+        for (percent in intArrayOf(0, 10, 50, 90, 100)) {
+            val size = 128L * GIB
+            val direct = AllocationPolicy.capacity(size, percent)
+            val planned = AllocationPolicy.capacity(
+                AllocationPolicy.plan(disk(sizeBytes = size), percent),
+            )
+            assertEquals(direct, planned)
+        }
+    }
+
+    @Test
+    fun capacityPureOverloadRejectsUnsupportedInput() {
+        assertThrows(IllegalArgumentException::class.java) {
+            AllocationPolicy.capacity(64L * GIB, 5)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            AllocationPolicy.capacity(0L, 50)
+        }
+    }
+
+    @Test
+    fun fallbackPlanMatchesOnlyTheSameMmcPath() {
+        val plan = AllocationPolicy.plan(disk(cid = "", platformPath = MMC_PATH), 50)
+
+        assertTrue(AllocationPolicy.matches(plan, disk(cid = "", platformPath = MMC_PATH)))
+        assertFalse(
+            AllocationPolicy.matches(
+                plan,
+                disk(cid = "", platformPath = MMC_PATH.replace("mmcblk1", "mmcblk2")),
+            ),
+        )
+        assertFalse(AllocationPolicy.matches(plan, disk(cid = "", platformPath = null)))
+    }
+
+    @Test
+    fun planWithAReadableCidStillRejectsADifferentMmcPath() {
+        val plan = AllocationPolicy.plan(disk(platformPath = MMC_PATH), 50)
+
+        assertTrue(AllocationPolicy.matches(plan, disk(platformPath = MMC_PATH)))
+        assertFalse(
+            AllocationPolicy.matches(
+                plan,
+                disk(platformPath = MMC_PATH.replace("mmcblk1", "mmcblk2")),
+            ),
+        )
     }
 }

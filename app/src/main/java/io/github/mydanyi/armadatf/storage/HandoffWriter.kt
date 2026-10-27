@@ -68,6 +68,25 @@ class HandoffWriter(context: Context) {
     }
 
     /**
+     * Deletes only our own app-private *pending* copy, leaving the published
+     * file on the card untouched.
+     *
+     * Used for the verified all-Android completion, where a pending payload
+     * from an earlier run must never be re-published as a Linux handoff. A
+     * missing file already counts as cleared; a failed delete returns `false`
+     * so the caller can log it without pretending a Linux handoff is valid.
+     */
+    fun clearPending(): Boolean {
+        val file = pendingFile()
+        if (!file.exists()) return true
+        return try {
+            file.delete()
+        } catch (e: SecurityException) {
+            false
+        }
+    }
+
+    /**
      * Returns a copy of the validated private pending payload, or `null` when no
      * pending file exists. A corrupted or oversized pending file throws rather
      * than masquerading as an empty ready payload.
@@ -205,20 +224,65 @@ class HandoffWriter(context: Context) {
     private class Validated(val canonical: JSONObject, val publicFsUuid: String)
 
     /**
-     * Validates a handoff against the completed-storage JSON schema and returns
-     * the canonical, bounded payload. Extra keys are dropped by rebuilding the
-     * object; missing or malformed required keys raise `handoff_invalid`.
+     * Validates a handoff against one of the three completed-storage schemas and
+     * returns the canonical, bounded payload. Extra keys are dropped by
+     * rebuilding the object; missing or malformed required keys raise
+     * `handoff_invalid`.
+     *
+     * Schema 1 is the unchanged mixed layout: a Linux ratio in 10..90 plus
+     * required non-null private partition GUID and FS UUID. Schema 2 is the
+     * all-Linux layout only: `allocation_mode` must be `linux_only`, the ratio
+     * must be exactly 100, and both private identifiers must be present and
+     * explicitly `null`. A schema 2 payload with any other mode, ratio or
+     * private value is rejected rather than reinterpreted.
+     *
+     * Schema 3 is the volume-identity fallback used when Android cannot read a
+     * CID: `identity_mode` must be exactly `volume`, `card_cid` must be
+     * explicitly `null`, and `allocation_mode` must be `mixed` (ratio 10..90,
+     * real private identifiers) or `linux_only` (ratio 100, explicit null
+     * private identifiers). All common identity, capacity and public-volume
+     * checks are identical to the legacy schemas. Schemas 1 and 2 still require
+     * a real CID, so a null CID can never be accepted by an older schema.
      */
     private fun validate(handoff: JSONObject): Validated {
         val magic = stringField(handoff, "magic") ?: invalid("magic")
         if (magic != MAGIC) invalid("magic")
 
-        val schema = handoff.opt("schema_version")
-        if (schema !is Number || schema.toInt() != SCHEMA_VERSION) invalid("schema_version")
+        val schemaValue = handoff.opt("schema_version")
+        if (schemaValue !is Number) invalid("schema_version")
+        val schema = schemaValue.toInt()
+        if (schemaValue.toDouble() != schema.toDouble()) invalid("schema_version")
+        if (schema != SCHEMA_VERSION &&
+            schema != SCHEMA_VERSION_LINUX_ONLY &&
+            schema != SCHEMA_VERSION_VOLUME
+        ) {
+            invalid("schema_version")
+        }
 
-        val rawCid = stringField(handoff, "card_cid") ?: invalid("card_cid")
-        if (!Identifiers.isValidCid(rawCid)) invalid("card_cid")
-        val cardCid = Identifiers.normalizeCid(rawCid)
+        val volumeIdentity = schema == SCHEMA_VERSION_VOLUME
+        val volumeMode = if (volumeIdentity) {
+            val identity = stringField(handoff, "identity_mode") ?: invalid("identity_mode")
+            if (identity != MODE_VOLUME) invalid("identity_mode")
+            val mode = stringField(handoff, "allocation_mode") ?: invalid("allocation_mode")
+            if (mode != MODE_MIXED && mode != MODE_LINUX_ONLY) invalid("allocation_mode")
+            mode
+        } else {
+            null
+        }
+
+        if (schema == SCHEMA_VERSION_LINUX_ONLY) {
+            val mode = stringField(handoff, "allocation_mode") ?: invalid("allocation_mode")
+            if (mode != MODE_LINUX_ONLY) invalid("allocation_mode")
+        }
+
+        val cardCid = if (volumeIdentity) {
+            requireExplicitNull(handoff, "card_cid")
+            null
+        } else {
+            val rawCid = stringField(handoff, "card_cid") ?: invalid("card_cid")
+            if (!Identifiers.isValidCid(rawCid)) invalid("card_cid")
+            Identifiers.normalizeCid(rawCid)
+        }
 
         val diskValue = handoff.opt("disk_bytes")
         if (diskValue !is Number) invalid("disk_bytes")
@@ -229,7 +293,6 @@ class HandoffWriter(context: Context) {
         if (ratioValue !is Number) invalid("linux_ratio")
         val ratio = ratioValue.toInt()
         if (ratioValue.toDouble() != ratio.toDouble()) invalid("linux_ratio")
-        if (ratio < MIN_RATIO || ratio > MAX_RATIO) invalid("linux_ratio")
 
         // Kept raw: the public FAT filesystem id is matched verbatim against the
         // platform volume UUID.
@@ -237,34 +300,62 @@ class HandoffWriter(context: Context) {
         if (publicFsUuid.isEmpty()) invalid("public_fs_uuid")
 
         if (!handoff.has("public_partition_guid")) invalid("public_partition_guid")
-        val publicGuidRaw = handoff.opt("public_partition_guid")
-        val publicGuid: String? = when {
-            publicGuidRaw == null || publicGuidRaw == JSONObject.NULL -> null
-            publicGuidRaw is String -> Identifiers.normalizeUuid(publicGuidRaw)
-                ?: invalid("public_partition_guid")
-            else -> invalid("public_partition_guid")
-        }
-
-        val privateGuid = Identifiers.normalizeUuid(
-            stringField(handoff, "private_partition_guid") ?: invalid("private_partition_guid"),
-        ) ?: invalid("private_partition_guid")
-
-        val privateFsUuid = Identifiers.normalizeUuid(
-            stringField(handoff, "private_fs_uuid") ?: invalid("private_fs_uuid"),
-        ) ?: invalid("private_fs_uuid")
+        val publicGuid = optionalUuid(handoff, "public_partition_guid")
 
         val canonical = JSONObject()
             .put("magic", MAGIC)
-            .put("schema_version", SCHEMA_VERSION)
-            .put("card_cid", cardCid)
+            .put("schema_version", schema)
+        if (volumeIdentity) {
+            canonical
+                .put("identity_mode", MODE_VOLUME)
+                .put("allocation_mode", volumeMode)
+        } else if (schema == SCHEMA_VERSION_LINUX_ONLY) {
+            canonical.put("allocation_mode", MODE_LINUX_ONLY)
+        }
+        canonical
+            .put("card_cid", if (volumeIdentity) JSONObject.NULL else cardCid)
             .put("disk_bytes", diskBytes)
             .put("linux_ratio", ratio)
             .put("public_fs_uuid", publicFsUuid)
             .put("public_partition_guid", publicGuid ?: JSONObject.NULL)
-            .put("private_partition_guid", privateGuid)
-            .put("private_fs_uuid", privateFsUuid)
+
+        val linuxOnlyLayout = if (volumeIdentity) {
+            volumeMode == MODE_LINUX_ONLY
+        } else {
+            schema == SCHEMA_VERSION_LINUX_ONLY
+        }
+        if (linuxOnlyLayout) {
+            if (ratio != LINUX_ONLY_RATIO) invalid("linux_ratio")
+            requireExplicitNull(handoff, "private_partition_guid")
+            requireExplicitNull(handoff, "private_fs_uuid")
+            canonical.put("private_partition_guid", JSONObject.NULL)
+            canonical.put("private_fs_uuid", JSONObject.NULL)
+        } else {
+            if (ratio < MIN_RATIO || ratio > MAX_RATIO) invalid("linux_ratio")
+            canonical.put("private_partition_guid", requiredUuid(handoff, "private_partition_guid"))
+            canonical.put("private_fs_uuid", requiredUuid(handoff, "private_fs_uuid"))
+        }
 
         return Validated(canonical, publicFsUuid)
+    }
+
+    /** A required, canonical UUID field. */
+    private fun requiredUuid(json: JSONObject, key: String): String =
+        Identifiers.normalizeUuid(stringField(json, key) ?: invalid(key)) ?: invalid(key)
+
+    /** A UUID field that may be an explicit `null` but never garbage. */
+    private fun optionalUuid(json: JSONObject, key: String): String? {
+        val value = json.opt(key)
+        return when {
+            value == null || value == JSONObject.NULL -> null
+            value is String -> Identifiers.normalizeUuid(value) ?: invalid(key)
+            else -> invalid(key)
+        }
+    }
+
+    /** The key must exist and be exactly `null`; an absent key is not a null. */
+    private fun requireExplicitNull(json: JSONObject, key: String) {
+        if (!json.has(key) || !json.isNull(key)) invalid(key)
     }
 
     private fun encode(canonical: JSONObject): ByteArray {
@@ -284,7 +375,19 @@ class HandoffWriter(context: Context) {
 
     private companion object {
         const val MAGIC = "armada-tf-handoff"
+
+        /** Mixed handoff schema, unchanged. */
         const val SCHEMA_VERSION = 1
+
+        /** All-Linux handoff schema with explicit null private identifiers. */
+        const val SCHEMA_VERSION_LINUX_ONLY = 2
+
+        /** Volume-identity fallback: no CID, the card is identified by volumes. */
+        const val SCHEMA_VERSION_VOLUME = 3
+        const val MODE_VOLUME = "volume"
+        const val MODE_LINUX_ONLY = "linux_only"
+        const val MODE_MIXED = "mixed"
+        const val LINUX_ONLY_RATIO = 100
 
         const val FILE_NAME = "armada-tf-handoff.json"
         const val PENDING_FILE_NAME = "armada-tf-handoff.pending.json"

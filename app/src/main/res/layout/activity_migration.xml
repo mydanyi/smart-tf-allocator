@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/migration_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/color_bg"
+    android:scrollbarStyle="outsideOverlay">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/migration_title"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/color_on_bg" />
+
+        <TextView
+            android:id="@+id/text_migration_card"
+            style="@style/ArmadaBody"
+            android:paddingTop="4dp"
+            android:textSize="13sp"
+            android:textColor="@color/color_muted" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:text="@string/migration_intro"
+            android:textSize="12sp"
+            android:textColor="@color/color_muted" />
+
+        <TextView
+            android:id="@+id/text_migration_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:paddingBottom="2dp"
+            android:textSize="15sp"
+            android:textColor="@color/color_accent"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/progress_migration"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progressTint="@color/color_accent"
+            android:visibility="gone" />
+
+        <!-- Primary shared storage -->
+        <LinearLayout
+            style="@style/ArmadaCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/ArmadaSectionTitle"
+                android:text="@string/migration_primary_section" />
+
+            <TextView
+                android:id="@+id/text_migration_primary_location"
+                style="@style/ArmadaBody"
+                android:paddingTop="4dp"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/button_migration_primary"
+                style="@style/ArmadaButtonPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/migration_primary_to_card" />
+
+            <TextView
+                android:id="@+id/text_migration_primary_note"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:textSize="11sp"
+                android:textColor="@color/color_muted" />
+        </LinearLayout>
+
+        <!-- Applications -->
+        <LinearLayout
+            style="@style/ArmadaPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/ArmadaSectionTitle"
+                android:text="@string/migration_apps_section" />
+
+            <TextView
+                android:id="@+id/text_migration_apps_empty"
+                style="@style/ArmadaBody"
+                android:paddingTop="6dp"
+                android:textSize="13sp"
+                android:textColor="@color/color_muted"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/migration_app_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <Button
+                android:id="@+id/button_migration_refresh"
+                style="@style/ArmadaButtonSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/migration_refresh" />
+        </LinearLayout>
+
+        <!-- Logs (same persisted setting as the main screen) -->
+        <Switch
+            android:id="@+id/switch_migration_logs"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:minHeight="48dp"
+            android:text="@string/migration_logs_label"
+            android:textColor="@color/color_on_bg"
+            android:textSize="15sp" />
+
+        <ScrollView
+            android:id="@+id/log_panel_migration"
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:background="@drawable/bg_log"
+            android:padding="10dp"
+            android:scrollbarStyle="insideOverlay"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/text_migration_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:textColor="@color/color_on_bg"
+                android:textIsSelectable="true" />
+        </ScrollView>
+    </LinearLayout>
+</ScrollView>
